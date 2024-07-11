@@ -16,7 +16,7 @@ const (
 
 type Database interface {
 	// CreateNote creates a new note.
-	CreateNote(ctx context.Context, note db.Note) error
+	CreateNote(ctx context.Context, note *db.Note) error
 }
 
 type Service interface {
@@ -73,9 +73,9 @@ func (s service) CreateNote(note Note) error {
 	return nil
 }
 
-func toNoteDB(note Note) db.Note {
-	noteDB := db.Note{
-		ID:        note.ID,
+func toNoteDB(note Note) *db.Note {
+	noteDB := &db.Note{
+		Category:  note.Category,
 		Note:      note.Note,
 		CreatedAt: time.Now().UTC(),
 	}

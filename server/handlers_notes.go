@@ -39,8 +39,8 @@ func (s server) createNote() http.Handler {
 
 func toCreateNote(req api.NoteCreateRequest) notes.Note {
 	note := notes.Note{
-		ID:   req.ID,
-		Note: req.Note,
+		Category: req.Category,
+		Note:     req.Note,
 	}
 	fmt.Printf("Note Type of notes.Note: %+v\n", note)
 	return note

@@ -1,6 +1,6 @@
 package notes
 
 type Note struct {
-	ID   string `json:"id"`
-	Note string `json:"note"`
+	Category string `json:"category"`
+	Note     string `json:"note"`
 }
