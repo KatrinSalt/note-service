@@ -1,15 +1,14 @@
 package db
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Note struct {
-	ID        string    `json:"id"`
+	ID        uuid.UUID `json:"id"`
 	Category  string    `json:"category"`
 	Note      string    `json:"note"`
 	CreatedAt time.Time `json:"timestamp"`
-}
-
-type Counter struct {
-	ID    string `json:"id"`
-	MaxID int    `json:"max_id"`
 }

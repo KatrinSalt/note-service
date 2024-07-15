@@ -30,7 +30,7 @@ func SetupServices(config Services) (*services, error) {
 
 }
 
-func setupCosmosDB(config Database) (db.Database, error) {
+func setupCosmosDB(config Database) (*db.CosmosDB, error) {
 	if len(config.Cosmos.ConnectionString) == 0 {
 		return nil, errors.New("cosmosdb connection string is empty")
 	} else if len(config.Cosmos.DatabaseID) == 0 {
