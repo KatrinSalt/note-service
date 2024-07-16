@@ -67,6 +67,24 @@ func (c *CosmosDB) CreateNote(ctx context.Context, note *Note) error {
 	return nil
 }
 
+func (c *CosmosDB) UpdateNote(ctx context.Context, note *Note) error {
+	fmt.Printf("Note struct which is sent to DB: %+v\n", note)
+
+	bytes, err := json.Marshal(&note)
+	if err != nil {
+		fmt.Printf("Failed to marshal the note: %s\n", err)
+		return err
+	}
+
+	pk := azcosmos.NewPartitionKeyString(note.Category)
+
+	if _, err := c.container.ReplaceItem(ctx, pk, note.ID.String(), bytes, nil); err != nil {
+		fmt.Printf("Failed to update a note in CosmosDB: %s\n", err)
+		return checkError(err)
+	}
+	return nil
+}
+
 func (c *CosmosDB) assignID(note *Note) error {
 	note.ID = uuid.New()
 
