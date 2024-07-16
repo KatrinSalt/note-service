@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/KatrinSalt/notes-service/db"
@@ -18,6 +19,8 @@ var (
 	ErrForbidden = errors.New("forbidden")
 	// ErrIDRequired is returned when an id is required.
 	ErrIDRequired = errors.New("id is required")
+	// ErrCategoryRequired is returned when a category is required.
+	ErrCategoryRequired = errors.New("category is required")
 )
 
 // responseError is a response error.
@@ -46,6 +49,8 @@ const (
 	CodeServerError = "ServerError"
 	// CodeIDRequired is the error code for ID required.
 	CodeIDRequired = "IDRequired"
+	// CodeCategoryRequired is the error code for category required.
+	CodeCategoryRequired = "CategoryRequired"
 )
 
 // errorCodeMaps contains a map with HTTP status codes and a map with errors
@@ -63,7 +68,11 @@ var errorCodeMaps = map[int]map[error]string{
 func errorCodes(err error) (int, string) {
 	for statusCode, errs := range errorCodeMaps {
 		for e, code := range errs {
+			fmt.Printf("errorCodes e: %s, code: %s, given err: %s\n", e, code, err)
+			comparison := errors.Is(err, e)
+			fmt.Printf("result of err comparison: %t\n", comparison)
 			if errors.Is(err, e) {
+				fmt.Printf("errorCodes statusCode: %d, code: %s\n", statusCode, code)
 				return statusCode, code
 			}
 		}

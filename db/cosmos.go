@@ -85,6 +85,16 @@ func (c *CosmosDB) UpdateNote(ctx context.Context, note *Note) error {
 	return nil
 }
 
+func (c *CosmosDB) DeleteNote(ctx context.Context, id, category string) error {
+	pk := azcosmos.NewPartitionKeyString(category)
+
+	if _, err := c.container.DeleteItem(ctx, pk, id, nil); err != nil {
+		fmt.Printf("Failed to delete a note in CosmosDB: %s\n", err)
+		return checkError(err)
+	}
+	return nil
+}
+
 func (c *CosmosDB) assignID(note *Note) error {
 	note.ID = uuid.New()
 

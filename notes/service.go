@@ -19,6 +19,8 @@ type Database interface {
 	CreateNote(ctx context.Context, note *db.Note) error
 	// UpdateNote updates a note.
 	UpdateNote(ctx context.Context, note *db.Note) error
+	// DeleteNote deletes a note.
+	DeleteNote(ctx context.Context, id, category string) error
 }
 
 type Service interface {
@@ -28,8 +30,8 @@ type Service interface {
 	// GetNoteByID(id string) (string, error)
 	// UpdateNote updates a note.
 	UpdateNote(note Note) error
-	// // DeleteNoteByID deletes a note by its ID.
-	// DeleteNoteByID(id string) error
+	// DeleteNote deletes a note by its ID.
+	DeleteNote(note Note) error
 }
 
 type service struct {
@@ -81,6 +83,18 @@ func (s service) UpdateNote(note Note) error {
 
 	if err := s.db.UpdateNote(ctx, toNoteDB(note)); err != nil {
 		fmt.Printf("Failed to update a note in DB: %s\n", err)
+		return err
+	}
+
+	return nil
+}
+
+func (s service) DeleteNote(note Note) error {
+	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
+	defer cancel()
+
+	if err := s.db.DeleteNote(ctx, note.ID.String(), note.Category); err != nil {
+		fmt.Printf("Failed to delete a note in DB: %s\n", err)
 		return err
 	}
 

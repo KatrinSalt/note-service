@@ -24,10 +24,10 @@ func decode[T any](r *http.Request) (T, error) {
 	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
 		var syntaxError *json.SyntaxError
 		if errors.As(err, &syntaxError) {
-			err = ErrEmptyRequestBody
+			err = ErrMalformedRequestBody
 		}
 		if errors.Is(err, io.EOF) {
-			err = errors.New("empty request body")
+			err = ErrEmptyRequestBody
 		}
 		return v, err
 	}
