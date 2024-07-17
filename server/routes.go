@@ -2,8 +2,9 @@ package server
 
 func (s server) routes() {
 	// Create a note handler
-	s.router.Handle("POST /createNote", s.createNote())
-	s.router.Handle("PUT /updateNote/{id}", s.updateNote())
-	s.router.Handle("DELETE /deleteNote/{id}", s.deleteNote())
-
+	s.router.Handle("POST /create", s.createNote())
+	s.router.Handle("PUT /update/{id}", s.updateNote())
+	s.router.Handle("DELETE /delete/{id}", s.deleteNote())
+	s.router.Handle("GET /notes/category/{category}/id/{id}", s.GetNoteByID())
+	s.router.Handle("GET /notes/category/{category}", s.GetNotesByCategory())
 }

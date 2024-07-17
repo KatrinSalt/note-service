@@ -131,6 +131,67 @@ func (s server) deleteNote() http.Handler {
 	})
 }
 
+func (s server) GetNotesByCategory() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		category := r.PathValue("category")
+		if len(category) == 0 {
+			writeError(w, http.StatusBadRequest, CodeCategoryRequired, ErrCategoryRequired)
+			return
+		}
+
+		notes, err := s.notes.GetNotesByCategory(category)
+		if err != nil {
+			if statusCode, code := errorCodes(err); statusCode != 0 {
+				fmt.Printf("Failed to list notes: %s\n", err)
+				writeError(w, statusCode, code, err)
+				return
+			}
+			fmt.Printf("Failed to list notes: %s\n", err)
+			writeServerError(w)
+			return
+		}
+
+		if err := encode(w, http.StatusOK, toNotesAPI(notes)); err != nil {
+			fmt.Printf("Failed to list notes: %s\n", err)
+			writeServerError(w)
+			return
+		}
+	})
+}
+
+func (s server) GetNoteByID() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		category := r.PathValue("category")
+		if len(category) == 0 {
+			writeError(w, http.StatusBadRequest, CodeCategoryRequired, ErrCategoryRequired)
+			return
+		}
+		id := r.PathValue("id")
+		if len(id) == 0 {
+			writeError(w, http.StatusBadRequest, CodeIDRequired, ErrIDRequired)
+			return
+		}
+
+		note, err := s.notes.GetNoteByID(category, id)
+		if err != nil {
+			if statusCode, code := errorCodes(err); statusCode != 0 {
+				fmt.Printf("Failed to get a note: %s\n", err)
+				writeError(w, statusCode, code, err)
+				return
+			}
+			fmt.Printf("Failed to get a note: %s\n", err)
+			writeServerError(w)
+			return
+		}
+
+		if err := encode(w, http.StatusOK, toNoteAPI(note)); err != nil {
+			fmt.Printf("Failed to get a note: %s\n", err)
+			writeServerError(w)
+			return
+		}
+	})
+}
+
 func toCreateNote(req api.NoteRequest) notes.Note {
 	note := notes.Note{
 		Category: req.Category,
@@ -171,4 +232,20 @@ func toDeleteNote(id string, req api.NoteRequest) (notes.Note, error) {
 	}
 	fmt.Printf("Note Type of notes.Note: %+v\n", note)
 	return note, nil
+}
+
+func toNoteAPI(note notes.Note) api.Note {
+	return api.Note{
+		ID:       note.ID.String(),
+		Category: note.Category,
+		Note:     note.Note,
+	}
+}
+
+func toNotesAPI(notes []notes.Note) []api.Note {
+	notesAPI := make([]api.Note, len(notes))
+	for i := range notes {
+		notesAPI[i] = toNoteAPI(notes[i])
+	}
+	return notesAPI
 }

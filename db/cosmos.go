@@ -95,6 +95,49 @@ func (c *CosmosDB) DeleteNote(ctx context.Context, id, category string) error {
 	return nil
 }
 
+func (c *CosmosDB) GetNotesByCategory(ctx context.Context, category string) ([]Note, error) {
+	var notes []Note
+	query := "SELECT * FROM c"
+	pk := azcosmos.NewPartitionKeyString(category)
+	queryPager := c.container.NewQueryItemsPager(query, pk, nil)
+	for queryPager.More() {
+		queryResponse, err := queryPager.NextPage(ctx)
+		if err != nil {
+			fmt.Printf("Failed to query NoteDB note container: %s\n", err)
+			return []Note{}, err
+		}
+
+		for _, item := range queryResponse.Items {
+			var note Note
+			if err = json.Unmarshal(item, &note); err != nil {
+				fmt.Printf("Failed to unmarshal the container note response: %s\n", err)
+				return []Note{}, err
+			}
+			notes = append(notes, note)
+		}
+	}
+	fmt.Printf("Notes from DB in category %s: %+v\n", category, notes)
+	return notes, nil
+}
+
+func (c *CosmosDB) GetNoteByID(ctx context.Context, category, id string) (Note, error) {
+	pk := azcosmos.NewPartitionKeyString(category)
+	// read the item from the container
+	response, err := c.container.ReadItem(ctx, pk, id, nil)
+	if err != nil {
+		fmt.Printf("Failed to read a note from CosmosDB: %s\n", err)
+		return Note{}, checkError(err)
+	}
+
+	var note Note
+	if err = json.Unmarshal(response.Value, &note); err != nil {
+		fmt.Printf("Failed to unmarshal the container note response: %s\n", err)
+		return Note{}, err
+	}
+
+	return note, nil
+}
+
 func (c *CosmosDB) assignID(note *Note) error {
 	note.ID = uuid.New()
 

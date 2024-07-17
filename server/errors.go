@@ -62,6 +62,9 @@ var errorCodeMaps = map[int]map[error]string{
 		ErrEmptyRequestBody:     "EmptyRequestBody",
 		db.ErrInvalidInput:      "InvalidDBInput",
 	},
+	http.StatusNotFound: {
+		db.ErrNotFound: "NotFound",
+	},
 }
 
 // errorCodes returns the status and error code for the given error.

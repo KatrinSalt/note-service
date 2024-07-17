@@ -21,6 +21,10 @@ type Database interface {
 	UpdateNote(ctx context.Context, note *db.Note) error
 	// DeleteNote deletes a note.
 	DeleteNote(ctx context.Context, id, category string) error
+	// GetNotesByCategory returns a list of notes stored in DB.
+	GetNotesByCategory(ctx context.Context, category string) ([]db.Note, error)
+	// GetNoteByID returns a notes with id <id>.
+	GetNoteByID(ctx context.Context, category, id string) (db.Note, error)
 }
 
 type Service interface {
@@ -32,6 +36,10 @@ type Service interface {
 	UpdateNote(note Note) error
 	// DeleteNote deletes a note by its ID.
 	DeleteNote(note Note) error
+	// GetNotesByCategory returns a list of notes stored in DB.
+	GetNotesByCategory(category string) ([]Note, error)
+	// GetNoteByID returns a notes with id <id>.
+	GetNoteByID(category, id string) (Note, error)
 }
 
 type service struct {
@@ -101,6 +109,37 @@ func (s service) DeleteNote(note Note) error {
 	return nil
 }
 
+func (s service) GetNotesByCategory(category string) ([]Note, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
+	defer cancel()
+
+	notesDB, err := s.db.GetNotesByCategory(ctx, category)
+	if err != nil {
+		fmt.Printf("Failed to get notes from DB: %s\n", err)
+		return nil, err
+	}
+
+	notes := make([]Note, len(notesDB))
+	for i := range notesDB {
+		notes[i] = fromNoteDB(&notesDB[i])
+	}
+
+	return notes, nil
+}
+
+func (s service) GetNoteByID(category, id string) (Note, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
+	defer cancel()
+
+	noteDB, err := s.db.GetNoteByID(ctx, category, id)
+	if err != nil {
+		fmt.Printf("Failed to get a note from DB: %s\n", err)
+		return Note{}, err
+	}
+
+	return fromNoteDB(&noteDB), nil
+}
+
 func toNoteDB(note Note) *db.Note {
 	noteDB := &db.Note{
 		ID:        note.ID,
@@ -110,4 +149,14 @@ func toNoteDB(note Note) *db.Note {
 	}
 	fmt.Printf("Note Type of db.Note: %+v\n", noteDB)
 	return noteDB
+}
+
+func fromNoteDB(noteDB *db.Note) Note {
+	note := Note{
+		ID:       noteDB.ID,
+		Category: noteDB.Category,
+		Note:     noteDB.Note,
+	}
+	fmt.Printf("Note Type of notes.Note: %+v\n", note)
+	return note
 }
