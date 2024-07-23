@@ -26,13 +26,14 @@ func (s server) createNote() http.Handler {
 				writeError(w, statusCode, code, err)
 				return
 			}
-			fmt.Printf("Failed to create a note: %s\n", err)
+			s.log.Error("Failed to create a note.", logError(err, "createNote")...)
+			// fmt.Printf("Failed to create a note: %s\n", err)
 			writeServerError(w)
 			return
 		}
 
 		if err := encode(w, http.StatusCreated, "Note is created"); err != nil {
-			fmt.Printf("Failed to create a note: %s\n", err)
+			s.log.Error("Failed to create a note.", logError(err, "createNote")...)
 			writeServerError(w)
 			return
 		}
@@ -68,13 +69,13 @@ func (s server) updateNote() http.Handler {
 				writeError(w, statusCode, code, err)
 				return
 			}
-			fmt.Printf("Failed to update a note: %s\n", err)
+			s.log.Error("Failed to update a note.", logError(err, "updateNote")...)
 			writeServerError(w)
 			return
 		}
 
-		if err := encode(w, http.StatusOK, "Note is created"); err != nil {
-			fmt.Printf("Failed to update a note: %s\n", err)
+		if err := encode(w, http.StatusOK, "Note is updated"); err != nil {
+			s.log.Error("Failed to update a note.", logError(err, "updateNote")...)
 			writeServerError(w)
 			return
 		}
@@ -116,13 +117,13 @@ func (s server) deleteNote() http.Handler {
 				writeError(w, statusCode, code, err)
 				return
 			}
-			fmt.Printf("Failed to delete a note: %s\n", err)
+			s.log.Error("Failed to delete a note.", logError(err, "deleteNote")...)
 			writeServerError(w)
 			return
 		}
 
 		if err := encode(w, http.StatusOK, "Note is deleted"); err != nil {
-			fmt.Printf("Failed to delete a note: %s\n", err)
+			s.log.Error("Failed to delete a note.", logError(err, "deleteNote")...)
 			writeServerError(w)
 			return
 		}
@@ -130,7 +131,7 @@ func (s server) deleteNote() http.Handler {
 	})
 }
 
-func (s server) GetNotesByCategory() http.Handler {
+func (s server) getNotesByCategory() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		category := r.PathValue("category")
 		if len(category) == 0 {
@@ -145,20 +146,20 @@ func (s server) GetNotesByCategory() http.Handler {
 				writeError(w, statusCode, code, err)
 				return
 			}
-			fmt.Printf("Failed to list notes: %s\n", err)
+			s.log.Error("Failed to list notes in the category.", logError(err, "getNotesByCategory")...)
 			writeServerError(w)
 			return
 		}
 
 		if err := encode(w, http.StatusOK, toNotesAPI(notes)); err != nil {
-			fmt.Printf("Failed to list notes: %s\n", err)
+			s.log.Error("Failed to list notes in the category.", logError(err, "getNotesByCategory")...)
 			writeServerError(w)
 			return
 		}
 	})
 }
 
-func (s server) GetNoteByID() http.Handler {
+func (s server) getNoteByID() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		category := r.PathValue("category")
 		if len(category) == 0 {
@@ -178,13 +179,13 @@ func (s server) GetNoteByID() http.Handler {
 				writeError(w, statusCode, code, err)
 				return
 			}
-			fmt.Printf("Failed to get a note: %s\n", err)
+			s.log.Error("Failed to get a note .", logError(err, "getNoteByID")...)
 			writeServerError(w)
 			return
 		}
 
 		if err := encode(w, http.StatusOK, toNoteAPI(note)); err != nil {
-			fmt.Printf("Failed to get a note: %s\n", err)
+			s.log.Error("Failed to get a note .", logError(err, "getNoteByID")...)
 			writeServerError(w)
 			return
 		}

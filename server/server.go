@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/KatrinSalt/notes-service/log"
 	"github.com/KatrinSalt/notes-service/notes"
 )
 
@@ -23,20 +23,27 @@ const (
 	defaultIdleTimeout  = 30 * time.Second
 )
 
+// logger is the interface that wraps around methods Info and Error.
+type logger interface {
+	Info(msg string, args ...any)
+	Error(msg string, args ...any)
+}
+
 // server holds an http.Server, a router and it's configured options.
 type server struct {
 	httpServer *http.Server
 	router     *http.ServeMux
-	// TODO: to be added later
-	notes   notes.Service
-	stopCh  chan os.Signal
-	errCh   chan error
-	started bool
+	log        logger
+	notes      notes.Service
+	stopCh     chan os.Signal
+	errCh      chan error
+	started    bool
 }
 
 // Options holds the configuration for the server.
 type Options struct {
 	Router       *http.ServeMux
+	Logger       logger
 	Host         string
 	Port         int
 	ReadTimeout  time.Duration
@@ -72,6 +79,9 @@ func New(notes notes.Service, options ...Option) (*server, error) {
 		s.router = http.NewServeMux()
 		s.httpServer.Handler = s.router
 	}
+	if s.log == nil {
+		s.log = log.New()
+	}
 
 	if len(s.httpServer.Addr) == 0 {
 		s.httpServer.Addr = defaultHost + ":" + defaultPort
@@ -100,14 +110,16 @@ func (s *server) Start() error {
 	}()
 
 	s.started = true
-	fmt.Printf("Server started at %s\n", s.httpServer.Addr)
+	// fmt.Printf("Server started at %s\n", s.httpServer.Addr)
+	s.log.Info("Server started at %s", s.httpServer.Addr)
 	for {
 		select {
 		case err := <-s.errCh:
 			close(s.errCh)
 			return err
 		case sig := <-s.stopCh:
-			fmt.Printf("Server stopped. Reason: %s\n", sig.String())
+			// fmt.Printf("Server stopped. Reason: %s\n", sig.String())
+			s.log.Info("Server stopped. Reason: %s", sig.String())
 			close(s.stopCh)
 			return nil
 		}
@@ -138,7 +150,9 @@ func WithOptions(options Options) Option {
 			s.router = options.Router
 			s.httpServer.Handler = s.router
 		}
-		// NOTE: question to logic: what if options.Host is empty and options.Port is not?
+		if options.Logger != nil {
+			s.log = options.Logger
+		}
 		if len(options.Host) > 0 || options.Port > 0 {
 			s.httpServer.Addr = options.Host + ":" + strconv.Itoa(options.Port)
 		}

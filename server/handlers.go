@@ -33,3 +33,8 @@ func decode[T any](r *http.Request) (T, error) {
 	}
 	return v, nil
 }
+
+// logError creates a log message for error loggig.
+func logError(err error, handler string) []any {
+	return []any{"error", err, "type", "service", "handler", handler}
+}

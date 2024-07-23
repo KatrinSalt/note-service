@@ -6,3 +6,10 @@ func WithAddress(address string) Option {
 		s.httpServer.Addr = address
 	}
 }
+
+// WithLogger sets the logger for the server.
+func WithLogger(log logger) Option {
+	return func(s *server) {
+		s.log = log
+	}
+}
