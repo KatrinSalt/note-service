@@ -101,7 +101,7 @@ func (s service) DeleteNote(note Note) error {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 
-	if err := s.db.DeleteNote(ctx, note.ID.String(), note.Category); err != nil {
+	if err := s.db.DeleteNote(ctx, note.ID, note.Category); err != nil {
 		fmt.Printf("Failed to delete a note in DB: %s\n", err)
 		return err
 	}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/KatrinSalt/notes-service/api"
 	"github.com/KatrinSalt/notes-service/notes"
-	"github.com/google/uuid"
 )
 
 // http.Handler - interface with ServeHTTP method
@@ -202,15 +201,8 @@ func toCreateNote(req api.NoteRequest) notes.Note {
 }
 
 func toUpdateNote(id string, req api.NoteRequest) (notes.Note, error) {
-	parsedID, err := uuid.Parse(id)
-	if err != nil {
-		fmt.Printf("Failed to parse the ID from the request: %s\n", err)
-		return notes.Note{}, err
-
-	}
-
 	note := notes.Note{
-		ID:       parsedID,
+		ID:       id,
 		Category: req.Category,
 		Note:     req.Note,
 	}
@@ -219,15 +211,8 @@ func toUpdateNote(id string, req api.NoteRequest) (notes.Note, error) {
 }
 
 func toDeleteNote(id string, req api.NoteRequest) (notes.Note, error) {
-	parsedID, err := uuid.Parse(id)
-	if err != nil {
-		fmt.Printf("Failed to parse the ID from the request: %s\n", err)
-		return notes.Note{}, err
-
-	}
-
 	note := notes.Note{
-		ID:       parsedID,
+		ID:       id,
 		Category: req.Category,
 	}
 	fmt.Printf("Note Type of notes.Note: %+v\n", note)
@@ -236,7 +221,7 @@ func toDeleteNote(id string, req api.NoteRequest) (notes.Note, error) {
 
 func toNoteAPI(note notes.Note) api.Note {
 	return api.Note{
-		ID:       note.ID.String(),
+		ID:       note.ID,
 		Category: note.Category,
 		Note:     note.Note,
 	}

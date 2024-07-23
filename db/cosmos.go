@@ -44,11 +44,12 @@ func NewCosmosDB(connectionString, dbID, containerID string) (*CosmosDB, error) 
 	}, nil
 }
 
+var newUUID = func() string {
+	return uuid.NewString()
+}
+
 func (c *CosmosDB) CreateNote(ctx context.Context, note *Note) error {
-	if err := c.assignID(note); err != nil {
-		fmt.Printf("Failed to assign an ID: %s\n", err)
-		return err
-	}
+	note.ID = newUUID()
 
 	fmt.Printf("Note struct which is sent to DB: %+v\n", note)
 
@@ -78,7 +79,7 @@ func (c *CosmosDB) UpdateNote(ctx context.Context, note *Note) error {
 
 	pk := azcosmos.NewPartitionKeyString(note.Category)
 
-	if _, err := c.container.ReplaceItem(ctx, pk, note.ID.String(), bytes, nil); err != nil {
+	if _, err := c.container.ReplaceItem(ctx, pk, note.ID, bytes, nil); err != nil {
 		fmt.Printf("Failed to update a note in CosmosDB: %s\n", err)
 		return checkError(err)
 	}
@@ -99,15 +100,15 @@ func (c *CosmosDB) GetNotesByCategory(ctx context.Context, category string) ([]N
 	var notes []Note
 	query := "SELECT * FROM c"
 	pk := azcosmos.NewPartitionKeyString(category)
-	queryPager := c.container.NewQueryItemsPager(query, pk, nil)
-	for queryPager.More() {
-		queryResponse, err := queryPager.NextPage(ctx)
+	pager := c.container.NewQueryItemsPager(query, pk, nil)
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
 		if err != nil {
 			fmt.Printf("Failed to query NoteDB note container: %s\n", err)
 			return []Note{}, err
 		}
 
-		for _, item := range queryResponse.Items {
+		for _, item := range resp.Items {
 			var note Note
 			if err = json.Unmarshal(item, &note); err != nil {
 				fmt.Printf("Failed to unmarshal the container note response: %s\n", err)
@@ -136,11 +137,4 @@ func (c *CosmosDB) GetNoteByID(ctx context.Context, category, id string) (Note, 
 	}
 
 	return note, nil
-}
-
-func (c *CosmosDB) assignID(note *Note) error {
-	note.ID = uuid.New()
-
-	fmt.Printf("Note struct with ID: %+v\n", note)
-	return nil
 }
