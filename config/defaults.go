@@ -18,3 +18,13 @@ const (
 	defaultCosmosDatabaseID  = "NotesDB"
 	defaultCosmosContainerID = "notes"
 )
+
+// Default Logger configuration for Service.
+const (
+	defaultServiceLogLevel = "DEBUG"
+)
+
+// Default Logger configuration for DB.
+const (
+	defaultDBLogLevel = "DEBUG"
+)

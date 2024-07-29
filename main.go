@@ -10,7 +10,11 @@ import (
 )
 
 func main() {
-	logger := setLogger()
+	logger, err := setLogger()
+	if err != nil {
+		logger.Error("Server error.", "error", err)
+		os.Exit(1)
+	}
 
 	if err := run(logger); err != nil {
 		logger.Error("Server error.", "error", err)
@@ -18,13 +22,17 @@ func main() {
 	}
 }
 
-func setLogger() *log.Logger {
-	logLevel, set := os.LookupEnv("LOG_LEVEL")
+func setLogger() (*log.Logger, error) {
+	logLevel, set := os.LookupEnv("SERVER_LOG_LEVEL")
 
 	if set {
-		return log.NewWithSetLevel(logLevel)
+		logger, err := log.NewWithSetLevel(logLevel)
+		if err != nil {
+			return nil, fmt.Errorf("could not load configuration: %w", err)
+		}
+		return logger, nil
 	} else {
-		return log.New()
+		return log.New(), nil
 	}
 
 }

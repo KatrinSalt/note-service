@@ -22,6 +22,7 @@ type Server struct {
 type Services struct {
 	Note     Note
 	Database Database
+	Log      Logger
 }
 
 type Note struct {
@@ -30,12 +31,18 @@ type Note struct {
 
 type Database struct {
 	Cosmos DatabaseCosmos
+	Log    Logger
 }
 
 type DatabaseCosmos struct {
 	ConnectionString string `env:"COSMOSDB_CONNECTION_STRING,required"`
 	DatabaseID       string `env:"COSMOSDB_DATABASE_ID"`
 	ContainerID      string `env:"COSMOSDB_CONTAINER_ID"`
+}
+
+type Logger struct {
+	ServiceLevel string `env:"SERVICE_LOG_LEVEL"`
+	DBLevel      string `env:"DB_LOG_LEVEL"`
 }
 
 // Options for the configuration.
@@ -65,6 +72,12 @@ func New(options ...Option) (Configuration, error) {
 					DatabaseID:  defaultCosmosDatabaseID,
 					ContainerID: defaultCosmosContainerID,
 				},
+				Log: Logger{
+					DBLevel: defaultDBLogLevel,
+				},
+			},
+			Log: Logger{
+				ServiceLevel: defaultServiceLogLevel,
 			},
 		},
 	}

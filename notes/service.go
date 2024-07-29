@@ -3,7 +3,6 @@ package notes
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/KatrinSalt/notes-service/db"
@@ -14,7 +13,14 @@ const (
 	defaultServiceTimeout = 15 * time.Second
 )
 
-type Database interface {
+// logger is the interface that wraps around methods Debug, Info and Error.
+type logger interface {
+	Debug(msg string, args ...any)
+	Info(msg string, args ...any)
+	Error(msg string, args ...any)
+}
+
+type database interface {
 	// CreateNote creates a new note.
 	CreateNote(ctx context.Context, note *db.Note) error
 	// UpdateNote updates a note.
@@ -27,6 +33,7 @@ type Database interface {
 	GetNoteByID(ctx context.Context, category, id string) (db.Note, error)
 }
 
+// Q: Why do I define the service interface here?
 type Service interface {
 	// CreateNote creates a new note.
 	CreateNote(note Note) error
@@ -43,21 +50,26 @@ type Service interface {
 }
 
 type service struct {
-	db      Database
+	db      database
+	log     logger
 	timeout time.Duration
 }
 
 // ServiceOptions contains options for the service.
 type ServiceOptions struct {
+	Logger  logger
 	Timeout time.Duration
 }
 
 // ServiceOption is a function that sets options on the service.
 type ServiceOption func(o *ServiceOptions)
 
-func NewService(db Database, options ...ServiceOption) (*service, error) {
+func NewService(db database, logger logger, options ...ServiceOption) (*service, error) {
 	if db == nil {
 		return nil, errors.New("database must not be nil")
+	}
+	if logger == nil {
+		return nil, errors.New("logger must not be nil")
 	}
 
 	opts := ServiceOptions{
@@ -69,6 +81,7 @@ func NewService(db Database, options ...ServiceOption) (*service, error) {
 
 	return &service{
 		db:      db,
+		log:     logger,
 		timeout: opts.Timeout,
 	}, nil
 }
@@ -78,7 +91,8 @@ func (s service) CreateNote(note Note) error {
 	defer cancel()
 
 	if err := s.db.CreateNote(ctx, toNoteDB(note)); err != nil {
-		fmt.Printf("Failed to create a note in DB: %s\n", err)
+		s.log.Info("Note Service: failed to created a note in DB.")
+		// fmt.Printf("Failed to create a note in DB: %s\n", err)
 		return err
 	}
 
@@ -89,8 +103,13 @@ func (s service) UpdateNote(note Note) error {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 
-	if err := s.db.UpdateNote(ctx, toNoteDB(note)); err != nil {
-		fmt.Printf("Failed to update a note in DB: %s\n", err)
+	toNoteDB := toNoteDB(note)
+	s.log.Debug("Note Type of db.Note",
+		"db.Note", toNoteDB)
+
+	if err := s.db.UpdateNote(ctx, toNoteDB); err != nil {
+		s.log.Info("Note Service: failed to update a note in DB.")
+		// fmt.Printf("Failed to update a note in DB: %s\n", err)
 		return err
 	}
 
@@ -102,7 +121,8 @@ func (s service) DeleteNote(note Note) error {
 	defer cancel()
 
 	if err := s.db.DeleteNote(ctx, note.ID, note.Category); err != nil {
-		fmt.Printf("Failed to delete a note in DB: %s\n", err)
+		s.log.Info("Note Service: failed to delete a note in DB.")
+		// fmt.Printf("Failed to delete a note in DB: %s\n", err)
 		return err
 	}
 
@@ -115,7 +135,8 @@ func (s service) GetNotesByCategory(category string) ([]Note, error) {
 
 	notesDB, err := s.db.GetNotesByCategory(ctx, category)
 	if err != nil {
-		fmt.Printf("Failed to get notes from DB: %s\n", err)
+		s.log.Info("Note Service: failed to get notes from DB.")
+		// fmt.Printf("Failed to get notes from DB: %s\n", err)
 		return nil, err
 	}
 
@@ -133,11 +154,16 @@ func (s service) GetNoteByID(category, id string) (Note, error) {
 
 	noteDB, err := s.db.GetNoteByID(ctx, category, id)
 	if err != nil {
-		fmt.Printf("Failed to get a note from DB: %s\n", err)
+		s.log.Info("Note Service: failed to get a note from DB.")
+		// fmt.Printf("Failed to get a note from DB: %s\n", err)
 		return Note{}, err
 	}
 
-	return fromNoteDB(&noteDB), nil
+	fromNoteDB := fromNoteDB(&noteDB)
+	s.log.Debug("Note Type of notes.Note",
+		"db.Note", fromNoteDB)
+
+	return fromNoteDB, nil
 }
 
 func toNoteDB(note Note) *db.Note {
@@ -147,7 +173,7 @@ func toNoteDB(note Note) *db.Note {
 		Note:      note.Note,
 		CreatedAt: time.Now().UTC(),
 	}
-	fmt.Printf("Note Type of db.Note: %+v\n", noteDB)
+	// fmt.Printf("Note Type of db.Note: %+v\n", noteDB)
 	return noteDB
 }
 
@@ -157,6 +183,6 @@ func fromNoteDB(noteDB *db.Note) Note {
 		Category: noteDB.Category,
 		Note:     noteDB.Note,
 	}
-	fmt.Printf("Note Type of notes.Note: %+v\n", note)
+	// fmt.Printf("Note Type of notes.Note: %+v\n", note)
 	return note
 }

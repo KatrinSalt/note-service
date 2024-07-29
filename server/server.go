@@ -111,7 +111,7 @@ func (s *server) Start() error {
 
 	s.started = true
 	// fmt.Printf("Server started at %s\n", s.httpServer.Addr)
-	s.log.Info("Server started at %s", s.httpServer.Addr)
+	s.log.Info("Server started.", "address", s.httpServer.Addr)
 	for {
 		select {
 		case err := <-s.errCh:
@@ -119,7 +119,7 @@ func (s *server) Start() error {
 			return err
 		case sig := <-s.stopCh:
 			// fmt.Printf("Server stopped. Reason: %s\n", sig.String())
-			s.log.Info("Server stopped. Reason: %s", sig.String())
+			s.log.Info("Server stopped.", "reason", sig.String())
 			close(s.stopCh)
 			return nil
 		}

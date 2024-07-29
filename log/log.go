@@ -1,6 +1,7 @@
 package log
 
 import (
+	"errors"
 	"log/slog"
 	"os"
 )
@@ -17,7 +18,11 @@ func New() *Logger {
 	}
 }
 
-func NewWithSetLevel(logLevel string) *Logger {
+func NewWithSetLevel(logLevel string) (*Logger, error) {
+	if len(logLevel) == 0 {
+		return nil, errors.New("log level is required")
+	}
+
 	var level slog.Level
 
 	switch logLevel {
@@ -34,7 +39,7 @@ func NewWithSetLevel(logLevel string) *Logger {
 	return &Logger{
 		stderr: slog.New(slog.NewJSONHandler(os.Stderr, nil)),
 		stdout: slog.New(slog.NewJSONHandler(os.Stdout, handlerOpts)),
-	}
+	}, nil
 }
 
 // Debug logs at [LevelDebug].

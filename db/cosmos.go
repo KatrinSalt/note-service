@@ -3,34 +3,40 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/google/uuid"
 )
 
+// logger is the interface that wraps around methods Debug, Info and Error.
+type logger interface {
+	Debug(msg string, args ...any)
+	Info(msg string, args ...any)
+	Error(msg string, args ...any)
+}
+
 type CosmosDB struct {
 	client    *azcosmos.Client
 	database  *azcosmos.DatabaseClient
 	container *azcosmos.ContainerClient
+	log       logger
 }
 
-func NewCosmosDB(connectionString, dbID, containerID string) (*CosmosDB, error) {
+func NewCosmosDB(connectionString, dbID, containerID string, logger logger) (*CosmosDB, error) {
+	if logger == nil {
+		return nil, errors.New("logger must not be nil")
+	}
 	client, err := azcosmos.NewClientFromConnectionString(connectionString, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// FYI: temporary for debugging
-	fmt.Println("Starting connection to CosmosDB...")
-
 	database, err := client.NewDatabase(dbID)
 	if err != nil {
 		return nil, err
 	}
-
-	// FYI: temporary for debugging
-	fmt.Printf("Get database:\t%s\n", database.ID())
 
 	container, err := database.NewContainer(containerID)
 	if err != nil {
@@ -41,6 +47,7 @@ func NewCosmosDB(connectionString, dbID, containerID string) (*CosmosDB, error) 
 		client:    client,
 		database:  database,
 		container: container,
+		log:       logger,
 	}, nil
 }
 
@@ -51,7 +58,8 @@ var newUUID = func() string {
 func (c *CosmosDB) CreateNote(ctx context.Context, note *Note) error {
 	note.ID = newUUID()
 
-	fmt.Printf("Note struct which is sent to DB: %+v\n", note)
+	c.log.Debug("Note struct sent to DB.", "note", note)
+	// fmt.Printf("Note struct which is sent to DB: %+v\n", note)
 
 	bytes, err := json.Marshal(&note)
 	if err != nil {
@@ -69,7 +77,7 @@ func (c *CosmosDB) CreateNote(ctx context.Context, note *Note) error {
 }
 
 func (c *CosmosDB) UpdateNote(ctx context.Context, note *Note) error {
-	fmt.Printf("Note struct which is sent to DB: %+v\n", note)
+	c.log.Debug("Note struct sent to DB.", "note", note)
 
 	bytes, err := json.Marshal(&note)
 	if err != nil {
@@ -117,7 +125,8 @@ func (c *CosmosDB) GetNotesByCategory(ctx context.Context, category string) ([]N
 			notes = append(notes, note)
 		}
 	}
-	fmt.Printf("Notes from DB in category %s: %+v\n", category, notes)
+	c.log.Debug("Notes from DB in category.", "category", category, "notes", notes)
+	// fmt.Printf("Notes from DB in category %s: %+v\n", category, notes)
 	return notes, nil
 }
 
