@@ -48,20 +48,26 @@ func run(log *log.Logger) error {
 	services, err := config.SetupServices(cfg.Services)
 	if err != nil {
 		return fmt.Errorf("could not setup services: %w", err)
+		return fmt.Errorf("could not setup services: %w", err)
 	}
 
 	srv, err := server.New(
 		services.Note,
 		server.WithAddress(cfg.Server.Host+":"+cfg.Server.Port),
 		server.WithLogger(log),
+		server.WithLogger(log),
 	)
 	if err != nil {
+		return fmt.Errorf("could not create server: %w", err)
 		return fmt.Errorf("could not create server: %w", err)
 	}
 
 	if err := srv.Start(); err != nil {
 		return fmt.Errorf("could not start server: %w", err)
+
 	}
+	log.Info("Note service stopped.")
+	return nil
 	log.Info("Note service stopped.")
 	return nil
 }

@@ -82,7 +82,6 @@ func New(notes notes.Service, options ...Option) (*server, error) {
 	if s.log == nil {
 		s.log = log.New()
 	}
-
 	if len(s.httpServer.Addr) == 0 {
 		s.httpServer.Addr = defaultHost + ":" + defaultPort
 	}
