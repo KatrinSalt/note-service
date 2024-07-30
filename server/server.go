@@ -97,7 +97,6 @@ func (s *server) Start() error {
 
 	s.routes()
 
-	// Question: in which order these two functions would be called?
 	go func() {
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.errCh <- err
@@ -109,7 +108,6 @@ func (s *server) Start() error {
 	}()
 
 	s.started = true
-	// fmt.Printf("Server started at %s\n", s.httpServer.Addr)
 	s.log.Info("Server started.", "address", s.httpServer.Addr)
 	for {
 		select {
@@ -117,7 +115,6 @@ func (s *server) Start() error {
 			close(s.errCh)
 			return err
 		case sig := <-s.stopCh:
-			// fmt.Printf("Server stopped. Reason: %s\n", sig.String())
 			s.log.Info("Server stopped.", "reason", sig.String())
 			close(s.stopCh)
 			return nil

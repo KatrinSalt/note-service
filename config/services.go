@@ -13,7 +13,7 @@ type services struct {
 }
 
 func SetupServices(config Services) (*services, error) {
-	logger, err := setupServiceLogger(config.Log)
+	logger, err := setupLogger(config.Log.ServiceLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -38,6 +38,7 @@ func SetupServices(config Services) (*services, error) {
 
 }
 
+// Q: where is the better place to check if the necessary values (Connection String, Database ID, etc are not empty)? Or in New CosmosDB function?
 func setupCosmosDB(config Database) (*db.CosmosDB, error) {
 	if len(config.Cosmos.ConnectionString) == 0 {
 		return nil, errors.New("cosmosdb connection string is empty")
@@ -46,7 +47,7 @@ func setupCosmosDB(config Database) (*db.CosmosDB, error) {
 	} else if len(config.Cosmos.ContainerID) == 0 {
 		return nil, errors.New("cosmosdb container id is empty")
 	} else {
-		logger, err := setupDBLogger(config.Log)
+		logger, err := setupLogger(config.Log.DBLevel)
 		if err != nil {
 			return nil, err
 		}
@@ -58,23 +59,11 @@ func setupCosmosDB(config Database) (*db.CosmosDB, error) {
 	}
 }
 
-func setupServiceLogger(config Logger) (*log.Logger, error) {
-	if len(config.ServiceLevel) == 0 {
+func setupLogger(logLevel string) (*log.Logger, error) {
+	if len(logLevel) == 0 {
 		return log.New(), nil
 	} else {
-		logger, err := log.NewWithSetLevel(config.ServiceLevel)
-		if err != nil {
-			return nil, err
-		}
-		return logger, nil
-	}
-}
-
-func setupDBLogger(config Logger) (*log.Logger, error) {
-	if len(config.DBLevel) == 0 {
-		return log.New(), nil
-	} else {
-		logger, err := log.NewWithSetLevel(config.DBLevel)
+		logger, err := log.NewWithSetLevel(logLevel)
 		if err != nil {
 			return nil, err
 		}

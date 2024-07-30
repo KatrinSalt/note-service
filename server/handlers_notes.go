@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/KatrinSalt/notes-service/api"
@@ -15,19 +14,16 @@ func (s server) createNote() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		noteReq, err := decode[api.NoteRequest](r)
 		if err != nil {
-			fmt.Printf("Failed to decode the request: %s\n", err)
 			statusCode, code := errorCodes(err)
 			writeError(w, statusCode, code, err)
 			return
 		}
 		if err := s.notes.CreateNote(toCreateNote(noteReq)); err != nil {
+			s.log.Error("Failed to create a note.", logError(err, "createNote")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
-				fmt.Printf("Failed to convert to a Note type: %s\n", err)
 				writeError(w, statusCode, code, err)
 				return
 			}
-			s.log.Error("Failed to create a note.", logError(err, "createNote")...)
-			// fmt.Printf("Failed to create a note: %s\n", err)
 			writeServerError(w)
 			return
 		}
@@ -42,34 +38,25 @@ func (s server) createNote() http.Handler {
 
 func (s server) updateNote() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// TODO: add proper validation
+		// it is assumed that the id is provided in the path
 		id := r.PathValue("id")
-		if len(id) == 0 {
-			writeError(w, http.StatusBadRequest, CodeIDRequired, ErrIDRequired)
-			return
-		}
 
 		noteReq, err := decode[api.NoteRequest](r)
 		if err != nil {
-			fmt.Printf("Failed to decode the request: %s\n", err)
 			statusCode, code := errorCodes(err)
 			writeError(w, statusCode, code, err)
 			return
 		}
 
-		note, err := toUpdateNote(id, noteReq)
-		if err != nil {
-			fmt.Printf("Failed to convert to a Note type: %s\n", err)
-			writeServerError(w)
-			return
-		}
+		note := toUpdateNote(id, noteReq)
 
 		if err := s.notes.UpdateNote(note); err != nil {
+			s.log.Error("Failed to update a note.", logError(err, "updateNote")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
-				fmt.Printf("Failed to convert to a Note type: %s\n", err)
 				writeError(w, statusCode, code, err)
 				return
 			}
-			s.log.Error("Failed to update a note.", logError(err, "updateNote")...)
 			writeServerError(w)
 			return
 		}
@@ -84,40 +71,31 @@ func (s server) updateNote() http.Handler {
 
 func (s server) deleteNote() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// TODO: add proper validation
+		// it is assumed that the id is provided in the path
 		id := r.PathValue("id")
-		if len(id) == 0 {
-			writeError(w, http.StatusBadRequest, CodeIDRequired, ErrIDRequired)
-			return
-		}
 
 		noteReq, err := decode[api.NoteRequest](r)
 		if err != nil {
-			fmt.Printf("Failed to decode the request: %s\n", err)
 			statusCode, code := errorCodes(err)
-			fmt.Printf("Status code: %d, Code: %s\n", statusCode, code)
 			writeError(w, statusCode, code, err)
 			return
 		}
 
+		// Note: leaving it temporary as I am gonna change the logic later (remove category as the partition key)
 		if len(noteReq.Category) == 0 {
 			writeError(w, http.StatusBadRequest, CodeCategoryRequired, ErrCategoryRequired)
 			return
 		}
 
-		note, err := toDeleteNote(id, noteReq)
-		if err != nil {
-			fmt.Printf("Failed to convert to a Note type: %s\n", err)
-			writeServerError(w)
-			return
-		}
+		note := toDeleteNote(id, noteReq)
 
 		if err := s.notes.DeleteNote(note); err != nil {
+			s.log.Error("Failed to delete a note.", logError(err, "deleteNote")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
-				fmt.Printf("Failed to delete a note: %s\n", err)
 				writeError(w, statusCode, code, err)
 				return
 			}
-			s.log.Error("Failed to delete a note.", logError(err, "deleteNote")...)
 			writeServerError(w)
 			return
 		}
@@ -133,20 +111,17 @@ func (s server) deleteNote() http.Handler {
 
 func (s server) getNotesByCategory() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// TODO: add proper validation
+		// it is assumed that the category is provided in the path
 		category := r.PathValue("category")
-		if len(category) == 0 {
-			writeError(w, http.StatusBadRequest, CodeCategoryRequired, ErrCategoryRequired)
-			return
-		}
 
 		notes, err := s.notes.GetNotesByCategory(category)
 		if err != nil {
+			s.log.Error("Failed to list notes in the category.", logError(err, "getNotesByCategory")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
-				fmt.Printf("Failed to list notes: %s\n", err)
 				writeError(w, statusCode, code, err)
 				return
 			}
-			s.log.Error("Failed to list notes in the category.", logError(err, "getNotesByCategory")...)
 			writeServerError(w)
 			return
 		}
@@ -161,25 +136,18 @@ func (s server) getNotesByCategory() http.Handler {
 
 func (s server) getNoteByID() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// TODO: add proper validation
+		// it is assumed that the category and id are provided in the path
 		category := r.PathValue("category")
-		if len(category) == 0 {
-			writeError(w, http.StatusBadRequest, CodeCategoryRequired, ErrCategoryRequired)
-			return
-		}
 		id := r.PathValue("id")
-		if len(id) == 0 {
-			writeError(w, http.StatusBadRequest, CodeIDRequired, ErrIDRequired)
-			return
-		}
 
 		note, err := s.notes.GetNoteByID(category, id)
 		if err != nil {
+			s.log.Error("Failed to get a note .", logError(err, "getNoteByID")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
-				fmt.Printf("Failed to get a note: %s\n", err)
 				writeError(w, statusCode, code, err)
 				return
 			}
-			s.log.Error("Failed to get a note .", logError(err, "getNoteByID")...)
 			writeServerError(w)
 			return
 		}
@@ -197,27 +165,24 @@ func toCreateNote(req api.NoteRequest) notes.Note {
 		Category: req.Category,
 		Note:     req.Note,
 	}
-	fmt.Printf("Note Type of notes.Note: %+v\n", note)
 	return note
 }
 
-func toUpdateNote(id string, req api.NoteRequest) (notes.Note, error) {
+func toUpdateNote(id string, req api.NoteRequest) notes.Note {
 	note := notes.Note{
 		ID:       id,
 		Category: req.Category,
 		Note:     req.Note,
 	}
-	fmt.Printf("Note Type of notes.Note: %+v\n", note)
-	return note, nil
+	return note
 }
 
-func toDeleteNote(id string, req api.NoteRequest) (notes.Note, error) {
+func toDeleteNote(id string, req api.NoteRequest) notes.Note {
 	note := notes.Note{
 		ID:       id,
 		Category: req.Category,
 	}
-	fmt.Printf("Note Type of notes.Note: %+v\n", note)
-	return note, nil
+	return note
 }
 
 func toNoteAPI(note notes.Note) api.Note {

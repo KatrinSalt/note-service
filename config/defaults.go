@@ -21,10 +21,10 @@ const (
 
 // Default Logger configuration for Service.
 const (
-	defaultServiceLogLevel = "DEBUG"
+	defaultServiceLogLevel = "INFO"
 )
 
 // Default Logger configuration for DB.
 const (
-	defaultDBLogLevel = "DEBUG"
+	defaultDBLogLevel = "INFO"
 )

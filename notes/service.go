@@ -3,6 +3,7 @@ package notes
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/KatrinSalt/notes-service/db"
@@ -33,7 +34,6 @@ type database interface {
 	GetNoteByID(ctx context.Context, category, id string) (db.Note, error)
 }
 
-// Q: Why do I define the service interface here?
 type Service interface {
 	// CreateNote creates a new note.
 	CreateNote(note Note) error
@@ -66,10 +66,10 @@ type ServiceOption func(o *ServiceOptions)
 
 func NewService(db database, logger logger, options ...ServiceOption) (*service, error) {
 	if db == nil {
-		return nil, errors.New("database must not be nil")
+		return nil, ErrDbRequired
 	}
 	if logger == nil {
-		return nil, errors.New("logger must not be nil")
+		return nil, ErrLoggerRequired
 	}
 
 	opts := ServiceOptions{
@@ -91,9 +91,7 @@ func (s service) CreateNote(note Note) error {
 	defer cancel()
 
 	if err := s.db.CreateNote(ctx, toNoteDB(note)); err != nil {
-		s.log.Info("Note Service: failed to created a note in DB.")
-		// fmt.Printf("Failed to create a note in DB: %s\n", err)
-		return err
+		return checkError(err)
 	}
 
 	return nil
@@ -103,14 +101,8 @@ func (s service) UpdateNote(note Note) error {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 
-	toNoteDB := toNoteDB(note)
-	s.log.Debug("Note Type of db.Note",
-		"db.Note", toNoteDB)
-
-	if err := s.db.UpdateNote(ctx, toNoteDB); err != nil {
-		s.log.Info("Note Service: failed to update a note in DB.")
-		// fmt.Printf("Failed to update a note in DB: %s\n", err)
-		return err
+	if err := s.db.UpdateNote(ctx, toNoteDB(note)); err != nil {
+		return checkError(err)
 	}
 
 	return nil
@@ -121,9 +113,7 @@ func (s service) DeleteNote(note Note) error {
 	defer cancel()
 
 	if err := s.db.DeleteNote(ctx, note.ID, note.Category); err != nil {
-		s.log.Info("Note Service: failed to delete a note in DB.")
-		// fmt.Printf("Failed to delete a note in DB: %s\n", err)
-		return err
+		return checkError(err)
 	}
 
 	return nil
@@ -135,9 +125,10 @@ func (s service) GetNotesByCategory(category string) ([]Note, error) {
 
 	notesDB, err := s.db.GetNotesByCategory(ctx, category)
 	if err != nil {
-		s.log.Info("Note Service: failed to get notes from DB.")
-		// fmt.Printf("Failed to get notes from DB: %s\n", err)
-		return nil, err
+		if errors.Is(err, db.ErrNotFound) {
+			return nil, fmt.Errorf("category %s: %w", category, ErrNotFound)
+		}
+		return nil, checkError(err)
 	}
 
 	notes := make([]Note, len(notesDB))
@@ -154,16 +145,13 @@ func (s service) GetNoteByID(category, id string) (Note, error) {
 
 	noteDB, err := s.db.GetNoteByID(ctx, category, id)
 	if err != nil {
-		s.log.Info("Note Service: failed to get a note from DB.")
-		// fmt.Printf("Failed to get a note from DB: %s\n", err)
-		return Note{}, err
+		if errors.Is(err, db.ErrNotFound) {
+			return Note{}, fmt.Errorf("category %s, id %s: %w", category, id, ErrNotFound)
+		}
+		return Note{}, checkError(err)
 	}
 
-	fromNoteDB := fromNoteDB(&noteDB)
-	s.log.Debug("Note Type of notes.Note",
-		"db.Note", fromNoteDB)
-
-	return fromNoteDB, nil
+	return fromNoteDB(&noteDB), nil
 }
 
 func toNoteDB(note Note) *db.Note {
@@ -173,7 +161,6 @@ func toNoteDB(note Note) *db.Note {
 		Note:      note.Note,
 		CreatedAt: time.Now().UTC(),
 	}
-	// fmt.Printf("Note Type of db.Note: %+v\n", noteDB)
 	return noteDB
 }
 
@@ -183,6 +170,5 @@ func fromNoteDB(noteDB *db.Note) Note {
 		Category: noteDB.Category,
 		Note:     noteDB.Note,
 	}
-	// fmt.Printf("Note Type of notes.Note: %+v\n", note)
 	return note
 }

@@ -2,10 +2,9 @@ package server
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
-	"github.com/KatrinSalt/notes-service/db"
+	"github.com/KatrinSalt/notes-service/notes"
 )
 
 var (
@@ -17,10 +16,11 @@ var (
 	ErrEmptyRequestBody = errors.New("empty request body")
 	// ErrForbidden is returned when the request is forbidden.
 	ErrForbidden = errors.New("forbidden")
-	// ErrIDRequired is returned when an id is required.
-	ErrIDRequired = errors.New("id is required")
 	// ErrCategoryRequired is returned when a category is required.
 	ErrCategoryRequired = errors.New("category is required")
+
+	// // ErrIDRequired is returned when an id is required.
+	// ErrIDRequired = errors.New("id is required")
 )
 
 // responseError is a response error.
@@ -60,10 +60,13 @@ var errorCodeMaps = map[int]map[error]string{
 		ErrInvalidRequest:       "InvalidRequest",
 		ErrMalformedRequestBody: "MalformedRequestBody",
 		ErrEmptyRequestBody:     "EmptyRequestBody",
-		db.ErrInvalidInput:      "InvalidDBInput",
+		notes.ErrInvalidInput:   "InvalidInput",
 	},
 	http.StatusNotFound: {
-		db.ErrNotFound: "NotFound",
+		notes.ErrNotFound: "NotFound",
+	},
+	http.StatusConflict: {
+		notes.ErrAlreadyExists: "AlreadyExists",
 	},
 }
 
@@ -71,11 +74,7 @@ var errorCodeMaps = map[int]map[error]string{
 func errorCodes(err error) (int, string) {
 	for statusCode, errs := range errorCodeMaps {
 		for e, code := range errs {
-			fmt.Printf("errorCodes e: %s, code: %s, given err: %s\n", e, code, err)
-			comparison := errors.Is(err, e)
-			fmt.Printf("result of err comparison: %t\n", comparison)
 			if errors.Is(err, e) {
-				fmt.Printf("errorCodes statusCode: %d, code: %s\n", statusCode, code)
 				return statusCode, code
 			}
 		}
