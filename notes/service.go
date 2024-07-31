@@ -23,9 +23,9 @@ type logger interface {
 
 type database interface {
 	// CreateNote creates a new note.
-	CreateNote(ctx context.Context, note *db.Note) error
+	CreateNote(ctx context.Context, note db.Note) (db.Note, error)
 	// UpdateNote updates a note.
-	UpdateNote(ctx context.Context, note *db.Note) error
+	UpdateNote(ctx context.Context, note db.Note) (db.Note, error)
 	// DeleteNote deletes a note.
 	DeleteNote(ctx context.Context, id, category string) error
 	// GetNotesByCategory returns a list of notes stored in DB.
@@ -36,11 +36,11 @@ type database interface {
 
 type Service interface {
 	// CreateNote creates a new note.
-	CreateNote(note Note) error
+	CreateNote(note Note) (Note, error)
 	// GetNoteByID returns a note by its ID.
 	// GetNoteByID(id string) (string, error)
 	// UpdateNote updates a note.
-	UpdateNote(note Note) error
+	UpdateNote(note Note) (Note, error)
 	// DeleteNote deletes a note by its ID.
 	DeleteNote(note Note) error
 	// GetNotesByCategory returns a list of notes stored in DB.
@@ -86,26 +86,28 @@ func NewService(db database, logger logger, options ...ServiceOption) (*service,
 	}, nil
 }
 
-func (s service) CreateNote(note Note) error {
+func (s service) CreateNote(note Note) (Note, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 
-	if err := s.db.CreateNote(ctx, toNoteDB(note)); err != nil {
-		return checkError(err)
+	noteDB, err := s.db.CreateNote(ctx, toNoteDB(note))
+	if err != nil {
+		return Note{}, checkError(err)
 	}
 
-	return nil
+	return fromNoteDB(noteDB), nil
 }
 
-func (s service) UpdateNote(note Note) error {
+func (s service) UpdateNote(note Note) (Note, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 
-	if err := s.db.UpdateNote(ctx, toNoteDB(note)); err != nil {
-		return checkError(err)
+	noteDB, err := s.db.UpdateNote(ctx, toNoteDB(note))
+	if err != nil {
+		return Note{}, checkError(err)
 	}
 
-	return nil
+	return fromNoteDB(noteDB), nil
 }
 
 func (s service) DeleteNote(note Note) error {
@@ -133,7 +135,7 @@ func (s service) GetNotesByCategory(category string) ([]Note, error) {
 
 	notes := make([]Note, len(notesDB))
 	for i := range notesDB {
-		notes[i] = fromNoteDB(&notesDB[i])
+		notes[i] = fromNoteDB(notesDB[i])
 	}
 
 	return notes, nil
@@ -151,11 +153,11 @@ func (s service) GetNoteByID(category, id string) (Note, error) {
 		return Note{}, checkError(err)
 	}
 
-	return fromNoteDB(&noteDB), nil
+	return fromNoteDB(noteDB), nil
 }
 
-func toNoteDB(note Note) *db.Note {
-	noteDB := &db.Note{
+func toNoteDB(note Note) db.Note {
+	noteDB := db.Note{
 		ID:        note.ID,
 		Category:  note.Category,
 		Note:      note.Note,
@@ -164,7 +166,7 @@ func toNoteDB(note Note) *db.Note {
 	return noteDB
 }
 
-func fromNoteDB(noteDB *db.Note) Note {
+func fromNoteDB(noteDB db.Note) Note {
 	note := Note{
 		ID:       noteDB.ID,
 		Category: noteDB.Category,

@@ -18,7 +18,8 @@ func (s server) createNote() http.Handler {
 			writeError(w, statusCode, code, err)
 			return
 		}
-		if err := s.notes.CreateNote(toCreateNote(noteReq)); err != nil {
+		data, err := s.notes.CreateNote(toCreateNote(noteReq))
+		if err != nil {
 			s.log.Error("Failed to create a note.", logError(err, "createNote")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
 				writeError(w, statusCode, code, err)
@@ -28,14 +29,21 @@ func (s server) createNote() http.Handler {
 			return
 		}
 
-		if err := encode(w, http.StatusCreated, "Note is created"); err != nil {
+		response := api.NoteResponse{
+			Message: "Note is created",
+			Data:    toNoteAPI(data),
+		}
+
+		if err := encode(w, http.StatusCreated, response); err != nil {
 			s.log.Error("Failed to create a note.", logError(err, "createNote")...)
 			writeServerError(w)
 			return
 		}
+		s.log.Info("Note is created.", "type", "service", "name", "noteService", "method", "Create", "noteCategory", data.Category, "noteID", data.ID)
 	})
 }
 
+// TODO: can't update the category of the note!
 func (s server) updateNote() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// TODO: add proper validation
@@ -51,8 +59,9 @@ func (s server) updateNote() http.Handler {
 
 		note := toUpdateNote(id, noteReq)
 
-		if err := s.notes.UpdateNote(note); err != nil {
-			s.log.Error("Failed to update a note.", logError(err, "updateNote")...)
+		data, err := s.notes.UpdateNote(note)
+		if err != nil {
+			s.log.Error("Failed to update the note.", logError(err, "updateNote")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
 				writeError(w, statusCode, code, err)
 				return
@@ -61,11 +70,17 @@ func (s server) updateNote() http.Handler {
 			return
 		}
 
-		if err := encode(w, http.StatusOK, "Note is updated"); err != nil {
+		response := api.NoteResponse{
+			Message: "Note is updated",
+			Data:    toNoteAPI(data),
+		}
+
+		if err := encode(w, http.StatusOK, response); err != nil {
 			s.log.Error("Failed to update a note.", logError(err, "updateNote")...)
 			writeServerError(w)
 			return
 		}
+		s.log.Info("Note is updated.", "type", "service", "name", "noteService", "method", "Update", "noteCategory", data.Category, "noteID", data.ID)
 	})
 }
 
@@ -106,6 +121,7 @@ func (s server) deleteNote() http.Handler {
 			return
 		}
 
+		s.log.Info("Note is deleted.", "type", "service", "name", "noteService", "method", "Delete", "noteCategory", note.Category, "noteID", note.ID)
 	})
 }
 
@@ -131,6 +147,7 @@ func (s server) getNotesByCategory() http.Handler {
 			writeServerError(w)
 			return
 		}
+		s.log.Info("Notes are listed.", "type", "service", "name", "noteService", "method", "getNotesByCategory", "notesCategory", category)
 	})
 }
 
@@ -157,6 +174,7 @@ func (s server) getNoteByID() http.Handler {
 			writeServerError(w)
 			return
 		}
+		s.log.Info("Note is found.", "type", "service", "name", "noteService", "method", "getNoteByID", "noteID", id)
 	})
 }
 

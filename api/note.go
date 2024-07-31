@@ -10,3 +10,8 @@ type Note struct {
 	Category string `json:"category,omitempty"`
 	Note     string `json:"note,omitempty"`
 }
+
+type NoteResponse struct {
+	Message string `json:"message,omitempty"`
+	Data    any    `json:"data,omitempty"`
+}

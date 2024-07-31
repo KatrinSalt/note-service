@@ -65,38 +65,60 @@ var newUUID = func() string {
 	return uuid.NewString()
 }
 
-func (c *CosmosDB) CreateNote(ctx context.Context, note *Note) error {
+func (c *CosmosDB) CreateNote(ctx context.Context, note Note) (Note, error) {
 	note.ID = newUUID()
 
 	// Q: would you 'properly' handle the error here, i.e. with the specific message?
 	bytes, err := json.Marshal(&note)
 	if err != nil {
-		return err
+		c.log.Error("Failed to marshal the note.", logError(err)...)
+		return Note{}, err
 	}
 
 	pk := azcosmos.NewPartitionKeyString(note.Category)
 
 	// Q: would it a better practice to write a custom error message here, i.e. "Failed to create a note in CosmosDB"?
-	if _, err := c.container.CreateItem(ctx, pk, bytes, nil); err != nil {
-		return checkError(err)
+	resp, err := c.container.CreateItem(ctx, pk, bytes, &azcosmos.ItemOptions{
+		EnableContentResponseOnWrite: true,
+	})
+	if err != nil {
+		c.log.Error("Failed to create the note.", logError(err)...)
+		return Note{}, checkError(err)
 	}
-	return nil
+
+	if err := json.Unmarshal(resp.Value, &note); err != nil {
+		c.log.Error("Failed unmarshal the note.", logError(err)...)
+		return Note{}, err
+	}
+
+	return note, nil
 }
 
-func (c *CosmosDB) UpdateNote(ctx context.Context, note *Note) error {
+func (c *CosmosDB) UpdateNote(ctx context.Context, note Note) (Note, error) {
 	// Q: would you 'properly' handle the error here, i.e. with the specific message?
 	bytes, err := json.Marshal(&note)
 	if err != nil {
-		return err
+		c.log.Error("Failed to marshal the note.", logError(err)...)
+		return Note{}, err
 	}
 
 	pk := azcosmos.NewPartitionKeyString(note.Category)
 
 	// Q: would it a better practice to write a custom error message here, i.e. "Failed to update a note in CosmosDB"?
-	if _, err := c.container.ReplaceItem(ctx, pk, note.ID, bytes, nil); err != nil {
-		return checkError(err)
+	resp, err := c.container.ReplaceItem(ctx, pk, note.ID, bytes, &azcosmos.ItemOptions{
+		EnableContentResponseOnWrite: true,
+	})
+	if err != nil {
+		c.log.Error("Failed to update the note.", logError(err)...)
+		return Note{}, checkError(err)
 	}
-	return nil
+
+	if err := json.Unmarshal(resp.Value, &note); err != nil {
+		c.log.Error("Failed unmarshal the note.", logError(err)...)
+		return Note{}, err
+	}
+
+	return note, nil
 }
 
 func (c *CosmosDB) DeleteNote(ctx context.Context, id, category string) error {
