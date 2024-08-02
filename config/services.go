@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/KatrinSalt/notes-service/db"
 	"github.com/KatrinSalt/notes-service/log"
 	"github.com/KatrinSalt/notes-service/notes"
@@ -38,25 +39,52 @@ func SetupServices(config Services) (*services, error) {
 
 }
 
-// Q: where is the better place to check if the necessary values (Connection String, Database ID, etc are not empty)? Or in New CosmosDB function?
-func setupCosmosDB(config Database) (*db.CosmosDB, error) {
-	if len(config.Cosmos.ConnectionString) == 0 {
+func setupCosmosContainerClient(config Client) (*azcosmos.ContainerClient, error) {
+	if len(config.ConnectionString) == 0 {
 		return nil, errors.New("cosmosdb connection string is empty")
-	} else if len(config.Cosmos.DatabaseID) == 0 {
-		return nil, errors.New("cosmosdb database id is empty")
-	} else if len(config.Cosmos.ContainerID) == 0 {
-		return nil, errors.New("cosmosdb container id is empty")
-	} else {
-		logger, err := setupLogger(config.Log.DBLevel)
-		if err != nil {
-			return nil, err
-		}
-		cosmosDB, err := db.NewCosmosDB(config.Cosmos.ConnectionString, config.Cosmos.DatabaseID, config.Cosmos.ContainerID, logger)
-		if err != nil {
-			return nil, err
-		}
-		return cosmosDB, nil
 	}
+	if len(config.DatabaseID) == 0 {
+		return nil, errors.New("cosmosdb database id is empty")
+	}
+	if len(config.ContainerID) == 0 {
+		return nil, errors.New("cosmosdb container id is empty")
+	}
+
+	CosmosContainerClient, err := azcosmos.NewClientFromConnectionString(config.ConnectionString, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	databaseClient, err := CosmosContainerClient.NewDatabase(config.DatabaseID)
+	if err != nil {
+		return nil, err
+	}
+
+	containerClient, err := databaseClient.NewContainer(config.ContainerID)
+	if err != nil {
+		return nil, err
+	}
+
+	return containerClient, nil
+}
+
+func setupCosmosDB(config Database) (*db.CosmosDB, error) {
+	client, err := setupCosmosContainerClient(config.CosmosContainerClient)
+	if err != nil {
+		return nil, err
+	}
+
+	logger, err := setupLogger(config.Log.DBLevel)
+	if err != nil {
+		return nil, err
+	}
+
+	cosmosDB, err := db.NewCosmosDB(client, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return cosmosDB, nil
 }
 
 func setupLogger(logLevel string) (*log.Logger, error) {

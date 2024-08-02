@@ -11,13 +11,15 @@ import (
 // NewDatabase errors.
 var (
 	// ErrConnStringNotFound is returned when the connection string is not provided.
-	ErrConnStringRequired = errors.New("connection string is not provided")
+	// ErrConnStringRequired = errors.New("connection string is not provided")
 	// ErrDbIdEmpty is returned when the database id is not provided.
-	ErrDbIdRequired = errors.New("database id is not provided")
+	// ErrDbIdRequired = errors.New("database id is not provided")
 	// ErrContainerIdEmpty is returned when the container id is not provided.
-	ErrContainerIdRequired = errors.New("container id is not provided")
+	// ErrContainerIdRequired = errors.New("container id is not provided")
 	// ErrLoggerEmpty is returned when the logger instance is not provided.
 	ErrLoggerRequired = errors.New("logger is not provided")
+	// ErrLoggerEmpty is returned when the logger instance is not provided.
+	ErrClientRequired = errors.New("database client is not provided")
 )
 
 // Generic error for the DB layer.
