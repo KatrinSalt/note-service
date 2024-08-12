@@ -4,81 +4,131 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/google/uuid"
 )
 
+// NOTE: // I would not put any logger here at all. The responsibility for logging should either be in the handlers of the server,
+// or inside the service layer for certain scenarios. But most often you would place it in the handlers of the server (server/handlers_notes.go)
 // logger is the interface that wraps around methods Debug, Info and Error.
-type logger interface {
+/* type logger interface {
 	Debug(msg string, args ...any)
 	Info(msg string, args ...any)
 	Error(msg string, args ...any)
+} */
+
+// cosmosClient is the interface that wraps around the Azure SDK CosmosDB client.
+// NOTE: This can be renamed to client after the rest is implemented.
+// NOTE: In this case id is a better name than itemID. Since we always know that the ID refers
+// to the item ID in the CosmosDB.
+// Avoid using prefixes or suffixes where it can be easily inferred by the context.
+// Since in your scenario, the only thing we care about is the Value of the response, we can just return that.
+// There might be cases where you want to get the status code or other information from the response. Then
+// adjust accordingly.
+type client interface {
+	CreateItem(ctx context.Context, partitionKey string, item []byte) ([]byte, error)
+	ReplaceItem(ctx context.Context, partitionKey, id string, item []byte) ([]byte, error)
+	DeleteItem(ctx context.Context, partitionKey, id string) error
+	ReadItem(ctx context.Context, partitionKey, id string) ([]byte, error)
+	// Ideally you would add another parameter here. Like options or filter
+	// to make the ListItems method more flexible, but that is out of scope for this
+	// example.
+	ListItems(ctx context.Context, partitionKey string) ([][]byte, error)
 }
 
-type client interface {
-	CreateItem(ctx context.Context, partitionKey azcosmos.PartitionKey, item []byte, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error)
-	ReplaceItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, item []byte, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error)
-	DeleteItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error)
-	ReadItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error)
-	NewQueryItemsPager(query string, partitionKey azcosmos.PartitionKey, o *azcosmos.QueryOptions) *runtime.Pager[azcosmos.QueryItemsResponse]
+// NOTE: cosmosClient wraps around the "real" Azure SDK CosmosDB client.
+type cosmosClient struct {
+	*azcosmos.ContainerClient
+}
+
+// NewCosmosClient returns a new CosmosDB client. All it does is doing the needed setup for
+// the components of the Azure SDK that we need.
+func NewCosmosClient(connectionString, database, container string) (*cosmosClient, error) {
+	client, err := azcosmos.NewClientFromConnectionString(connectionString, nil)
+	if err != nil {
+		return nil, err
+	}
+	containerClient, err := client.NewContainer(database, container)
+	if err != nil {
+		return nil, err
+	}
+	return &cosmosClient{
+		ContainerClient: containerClient,
+	}, nil
+}
+
+// NOTE: This will not be tested by you, since the responsibility of testing the inner functionality
+// is on the Azure SDK. You will only test the methods that use this client.
+func (c cosmosClient) CreateItem(ctx context.Context, partitionKey string, item []byte) ([]byte, error) {
+	resp, err := c.ContainerClient.CreateItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), item, &azcosmos.ItemOptions{
+		EnableContentResponseOnWrite: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Value, nil
+}
+
+// NOTE: This will not be tested by you, since the responsibility of testing the inner functionality
+// is on the Azure SDK. You will only test the methods that use this client.
+func (c cosmosClient) ReplaceItem(ctx context.Context, partitionKey string, id string, item []byte) ([]byte, error) {
+	resp, err := c.ContainerClient.ReplaceItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), id, item, &azcosmos.ItemOptions{
+		EnableContentResponseOnWrite: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Value, nil
+}
+
+// NOTE: This will not be tested by you, since the responsibility of testing the inner functionality
+// is on the Azure SDK. You will only test the methods that use this client.
+func (c cosmosClient) DeleteItem(ctx context.Context, partitionKey string, id string) error {
+	_, err := c.ContainerClient.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), id, nil)
+	return err
+}
+
+// NOTE: This will not be tested by you, since the responsibility of testing the inner functionality
+// is on the Azure SDK. You will only test the methods that use this client.
+func (c cosmosClient) ReadItem(ctx context.Context, partitionKey string, id string) ([]byte, error) {
+	resp, err := c.ContainerClient.ReadItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), id, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Value, nil
+}
+
+// NOTE: This will not be tested by you, since the responsibility of testing the inner functionality
+// is on the Azure SDK. You will only test the methods that use this client.
+func (c cosmosClient) ListItems(ctx context.Context, partitionKey string) ([][]byte, error) {
+	// As mentioned with the interface, this method should have options or filters
+	// that builds the query according to the provided filter. So the list
+	// method can be used for different scenarios.
+	query := "SELECT * FROM c"
+
+	var items [][]byte
+	pager := c.ContainerClient.NewQueryItemsPager(query, azcosmos.NewPartitionKeyString(partitionKey), nil)
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, resp.Items...)
+	}
+	return items, nil
 }
 
 type CosmosDB struct {
-	cl  client
-	log logger
+	cl client
 }
 
-// func NewCosmosDB(connectionString, dbID, containerID string, logger logger, client Client) (*CosmosDB, error) {
-// 	if len(connectionString) == 0 {
-// 		return nil, ErrConnStringRequired
-// 	}
-// 	if len(dbID) == 0 {
-// 		return nil, ErrDbIdRequired
-// 	}
-// 	if len(containerID) == 0 {
-// 		return nil, ErrContainerIdRequired
-// 	}
-// 	if logger == nil {
-// 		return nil, ErrLoggerRequired
-// 	}
-
-// 	logger.Debug("Creating a new CosmosDB client.", "dbID", dbID, "containerID", containerID)
-
-// 	client, err := azcosmos.NewClientFromConnectionString(connectionString, nil)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	database, err := client.NewDatabase(dbID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	container, err := database.NewContainer(containerID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return &CosmosDB{
-// 		client:    client,
-// 		database:  database,
-// 		container: container,
-// 		log:       logger,
-// 	}, nil
-// }
-
-func NewCosmosDB(client client, logger logger) (*CosmosDB, error) {
+func NewCosmosDB(client client) (*CosmosDB, error) {
 	if client == nil {
 		return nil, ErrClientRequired
 	}
-	if logger == nil {
-		return nil, ErrLoggerRequired
-	}
 
 	return &CosmosDB{
-		cl:  client,
-		log: logger,
+		cl: client,
 	}, nil
 }
 
@@ -91,103 +141,73 @@ var newUUID = func() string {
 func (c *CosmosDB) CreateNote(ctx context.Context, note Note) (Note, error) {
 	note.ID = newUUID()
 
-	// Q: would you 'properly' handle the error here, i.e. with the specific message?
 	bytes, err := json.Marshal(&note)
 	if err != nil {
-		c.log.Error("Failed to marshal the note.", logError(err)...)
 		return Note{}, err
 	}
 
-	pk := azcosmos.NewPartitionKeyString(note.Category)
-
-	// Q: would it a better practice to write a custom error message here, i.e. "Failed to create a note in CosmosDB"?
-	resp, err := c.cl.CreateItem(ctx, pk, bytes, &azcosmos.ItemOptions{
-		EnableContentResponseOnWrite: true,
-	})
+	data, err := c.cl.CreateItem(ctx, note.Category, bytes)
 	if err != nil {
-		c.log.Error("Failed to create the note.", logError(err)...)
 		return Note{}, checkError(err)
 	}
 
-	var noteDB Note
-	if err := json.Unmarshal(resp.Value, &noteDB); err != nil {
-		c.log.Error("Failed unmarshal the note.", logError(err)...)
+	var n Note
+	if err := json.Unmarshal(data, &n); err != nil {
 		return Note{}, err
 	}
 
-	return noteDB, nil
+	return n, nil
 }
 
 func (c *CosmosDB) UpdateNote(ctx context.Context, note Note) (Note, error) {
-	// Q: would you 'properly' handle the error here, i.e. with the specific message?
 	bytes, err := json.Marshal(&note)
 	if err != nil {
-		c.log.Error("Failed to marshal the note.", logError(err)...)
 		return Note{}, err
 	}
 
-	pk := azcosmos.NewPartitionKeyString(note.Category)
-
-	// Q: would it a better practice to write a custom error message here, i.e. "Failed to update a note in CosmosDB"?
-	resp, err := c.cl.ReplaceItem(ctx, pk, note.ID, bytes, &azcosmos.ItemOptions{
-		EnableContentResponseOnWrite: true,
-	})
+	data, err := c.cl.ReplaceItem(ctx, note.Category, note.ID, bytes)
 	if err != nil {
-		c.log.Error("Failed to update the note.", logError(err)...)
 		return Note{}, checkError(err)
 	}
 
-	if err := json.Unmarshal(resp.Value, &note); err != nil {
-		c.log.Error("Failed unmarshal the note.", logError(err)...)
+	var n Note
+	if err := json.Unmarshal(data, &n); err != nil {
 		return Note{}, err
 	}
 
-	return note, nil
+	return n, nil
 }
 
 func (c *CosmosDB) DeleteNote(ctx context.Context, id, category string) error {
-	pk := azcosmos.NewPartitionKeyString(category)
-
-	// Q: would it a better practice to write a custom error message here, i.e. "Failed to delete a note in CosmosDB"?
-	if _, err := c.cl.DeleteItem(ctx, pk, id, nil); err != nil {
+	if err := c.cl.DeleteItem(ctx, category, id); err != nil {
 		return checkError(err)
 	}
 	return nil
 }
 
 func (c *CosmosDB) GetNotesByCategory(ctx context.Context, category string) ([]Note, error) {
-	var notes []Note
-	query := "SELECT * FROM c"
-	pk := azcosmos.NewPartitionKeyString(category)
-	pager := c.cl.NewQueryItemsPager(query, pk, nil)
-	for pager.More() {
-		resp, err := pager.NextPage(ctx)
-		if err != nil {
-			return []Note{}, err
-		}
+	data, err := c.cl.ListItems(ctx, category)
+	if err != nil {
+		return []Note{}, err
+	}
 
-		for _, item := range resp.Items {
-			var note Note
-			if err = json.Unmarshal(item, &note); err != nil {
-				return []Note{}, err
-			}
-			notes = append(notes, note)
+	notes := make([]Note, len(data))
+	for i, d := range data {
+		if err := json.Unmarshal(d, &notes[i]); err != nil {
+			return []Note{}, err
 		}
 	}
 	return notes, nil
 }
 
 func (c *CosmosDB) GetNoteByID(ctx context.Context, category, id string) (Note, error) {
-	pk := azcosmos.NewPartitionKeyString(category)
-	// read the item from the container
-	response, err := c.cl.ReadItem(ctx, pk, id, nil)
-	// Q: would it a better practice to write a custom error message here, i.e. "Failed to get a note from the CosmosDB"?
+	data, err := c.cl.ReadItem(ctx, category, id)
 	if err != nil {
 		return Note{}, checkError(err)
 	}
 
 	var note Note
-	if err = json.Unmarshal(response.Value, &note); err != nil {
+	if err = json.Unmarshal(data, &note); err != nil {
 		return Note{}, err
 	}
 

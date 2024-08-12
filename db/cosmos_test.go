@@ -2,156 +2,116 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
-	"github.com/KatrinSalt/notes-service/log"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/google/go-cmp/cmp"
 )
 
-type mockInput struct {
-	partitionKey azcosmos.PartitionKey
-	item         []byte
-	itemId       string
-	o            *azcosmos.ItemOptions
-}
-
-type mockCosmosContainerClient struct {
-	client
-	t          *testing.T
-	input      mockInput
-	response   azcosmos.ItemResponse
-	err        error
-	funcCalled bool
-}
-
-func (m *mockCosmosContainerClient) CreateItem(ctx context.Context, partitionKey azcosmos.PartitionKey, item []byte, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error) {
-	m.funcCalled = true
-	require.Equal(m.t, m.input.partitionKey, partitionKey)
-	// require.Equal(m.t, m.input.item, item)
-	require.Equal(m.t, m.input.o, o)
-	return m.response, m.err
-}
-
-func (m *mockCosmosContainerClient) ReadItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error) {
-	return azcosmos.ItemResponse{}, nil
-}
-
-func (m *mockCosmosContainerClient) ReplaceItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, item []byte, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error) {
-	return azcosmos.ItemResponse{}, nil
-}
-
-func (m *mockCosmosContainerClient) DeleteItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error) {
-	return azcosmos.ItemResponse{}, nil
-}
-
-func Test_CreateNote_Success(t *testing.T) {
-	// Arrange
-	mockClient := mockCosmosContainerClient{
-		t: t,
-		input: mockInput{
-			partitionKey: azcosmos.NewPartitionKeyString("category"),
-			item:         []byte("{\"id\":\"id\",\"category\":\"category\",\"note\":\"note\"}"),
-			o: &azcosmos.ItemOptions{
-				EnableContentResponseOnWrite: true,
+// What we want to test is that your CreateNote method works as expected.
+// By creating an ID for the Note, and that it handles responses from
+// the CosmosDB client correctly.
+func TestCosmosDB_CreateNote(t *testing.T) {
+	var tests = []struct {
+		name  string
+		input struct {
+			client client
+			note   Note
+		}
+		want    Note
+		wantErr error
+	}{
+		{
+			name: "Create note",
+			input: struct {
+				client client
+				note   Note
+			}{
+				client: &mockCosmosClient{},
+				note: Note{
+					Category: "category",
+					Note:     "note",
+				},
+			},
+			want: Note{
+				ID:       "id",
+				Category: "category",
+				Note:     "note",
 			},
 		},
-		response: azcosmos.ItemResponse{
-			Value: []byte(`{"test":"test"}`),
-		},
-		err: nil,
 	}
 
-	cosmosDB, err := NewCosmosDB(
-		&mockClient,
-		log.New(),
-	)
-	assert.NoError(t, err)
-
-	note := Note{
-		ID:       "id",
-		Category: "category",
-		Note:     "note",
+	newUUID = func() string {
+		return "id"
 	}
 
-	// Act
-	_, err = cosmosDB.CreateNote(context.Background(), note)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := &CosmosDB{
+				cl: test.input.client,
+			}
 
-	// Assert
-	require.NoError(t, err)
-	require.True(t, mockClient.funcCalled)
+			got, gotErr := c.CreateNote(context.Background(), test.input.note)
+
+			if diff := cmp.Diff(test.want, got); diff != "" {
+				t.Errorf("CreateNote() = unexpected result (-want +got)\n%s\n", diff)
+			}
+
+			if diff := cmp.Diff(test.wantErr, gotErr); diff != "" {
+				t.Errorf("CreateNote() = unexpected error (-want +got)\n%s\n", diff)
+			}
+		})
+	}
 }
 
-func Test_CreateNote_Err_on_Create(t *testing.T) {
-	// Arrange
-	mockClient := mockCosmosContainerClient{
-		t: t,
-		input: mockInput{
-			partitionKey: azcosmos.NewPartitionKeyString("category"),
-			item:         []byte("{\"id\":\"id\",\"category\":\"category\",\"note\":\"note\"}"),
-			o: &azcosmos.ItemOptions{
-				EnableContentResponseOnWrite: true,
-			},
-		},
-		response: azcosmos.ItemResponse{},
-		err:      assert.AnError,
-	}
-
-	cosmosDB, err := NewCosmosDB(
-		&mockClient,
-		log.New(),
-	)
-	assert.NoError(t, err)
-
-	note := Note{
-		ID:       "id",
-		Category: "category",
-		Note:     "note",
-	}
-
-	// Act
-	_, err = cosmosDB.CreateNote(context.Background(), note)
-
-	// Assert
-	require.Error(t, err)
-	require.True(t, mockClient.funcCalled)
+type mockCosmosClient struct {
+	data map[string][]byte
+	err  error
 }
 
-func Test_CreateNote_Err_on_Unmarshal(t *testing.T) {
-	// Arrange
-	mockClient := mockCosmosContainerClient{
-		t: t,
-		input: mockInput{
-			partitionKey: azcosmos.NewPartitionKeyString("category"),
-			item:         []byte("{\"id\":\"id\",\"category\":\"category\",\"note\":\"note\"}"),
-			o: &azcosmos.ItemOptions{
-				EnableContentResponseOnWrite: true,
-			},
-		},
-		response: azcosmos.ItemResponse{
-			Value: []byte(`notajson`),
-		},
-		err: nil,
+// The mock client implementation of CreateItem stores the input item in a map (after unmarshalling it to retreive the ID for
+// the key) and returns the input item as the response just as the CosmosDB client would.
+func (c *mockCosmosClient) CreateItem(ctx context.Context, partitionKey string, item []byte) ([]byte, error) {
+	if c.err != nil {
+		return []byte{}, c.err
+	}
+	if c.data == nil {
+		c.data = make(map[string][]byte)
 	}
 
-	cosmosDB, err := NewCosmosDB(
-		&mockClient,
-		log.New(),
-	)
-	assert.NoError(t, err)
-
-	note := Note{
-		ID:       "id",
-		Category: "category",
-		Note:     "note",
+	var note Note
+	if err := json.Unmarshal(item, &note); err != nil {
+		return []byte{}, err
 	}
 
-	// Act
-	_, err = cosmosDB.CreateNote(context.Background(), note)
+	c.data[note.ID] = item
+	return item, nil
+}
 
-	// Assert
-	require.Error(t, err)
-	require.True(t, mockClient.funcCalled)
+func (c mockCosmosClient) ReplaceItem(ctx context.Context, partitionKey, id string, item []byte) ([]byte, error) {
+	if c.err != nil {
+		return []byte{}, c.err
+	}
+	return []byte{}, nil
+}
+
+func (c mockCosmosClient) DeleteItem(ctx context.Context, partitionKey, id string) error {
+	if c.err != nil {
+		return c.err
+	}
+	return nil
+}
+
+func (c mockCosmosClient) ReadItem(ctx context.Context, partitionKey, id string) ([]byte, error) {
+	if c.err != nil {
+		return []byte{}, c.err
+	}
+	return []byte{}, nil
+}
+
+func (c mockCosmosClient) ListItems(ctx context.Context, partitionKey string) ([][]byte, error) {
+	if c.err != nil {
+		return [][]byte{}, c.err
+	}
+	return [][]byte{}, nil
 }
