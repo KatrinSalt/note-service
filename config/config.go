@@ -30,14 +30,10 @@ type Note struct {
 }
 
 type Database struct {
-	CosmosContainerClient Client
-	Log                   Logger
-}
-
-type Client struct {
 	ConnectionString string `env:"COSMOSDB_CONNECTION_STRING,required"`
-	DatabaseID       string `env:"COSMOSDB_DATABASE_ID"`
-	ContainerID      string `env:"COSMOSDB_CONTAINER_ID"`
+	Database         string `env:"COSMOSDB_DATABASE,required"`
+	Container        string `env:"COSMOSDB_CONTAINER,required"`
+	Log              Logger
 }
 
 type Logger struct {
@@ -68,10 +64,8 @@ func New(options ...Option) (Configuration, error) {
 				Timeout: defaultNoteTimeout,
 			},
 			Database: Database{
-				CosmosContainerClient: Client{
-					DatabaseID:  defaultCosmosDatabaseID,
-					ContainerID: defaultCosmosContainerID,
-				},
+				Database:  defaultCosmosDatabase,
+				Container: defaultCosmosContainer,
 				Log: Logger{
 					DBLevel: defaultDBLogLevel,
 				},

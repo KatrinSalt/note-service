@@ -1,9 +1,6 @@
 package config
 
 import (
-	"errors"
-
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/KatrinSalt/notes-service/db"
 	"github.com/KatrinSalt/notes-service/log"
 	"github.com/KatrinSalt/notes-service/notes"
@@ -39,47 +36,13 @@ func SetupServices(config Services) (*services, error) {
 
 }
 
-func setupCosmosContainerClient(config Client) (*azcosmos.ContainerClient, error) {
-	if len(config.ConnectionString) == 0 {
-		return nil, errors.New("cosmosdb connection string is empty")
-	}
-	if len(config.DatabaseID) == 0 {
-		return nil, errors.New("cosmosdb database id is empty")
-	}
-	if len(config.ContainerID) == 0 {
-		return nil, errors.New("cosmosdb container id is empty")
-	}
-
-	CosmosContainerClient, err := azcosmos.NewClientFromConnectionString(config.ConnectionString, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	databaseClient, err := CosmosContainerClient.NewDatabase(config.DatabaseID)
-	if err != nil {
-		return nil, err
-	}
-
-	containerClient, err := databaseClient.NewContainer(config.ContainerID)
-	if err != nil {
-		return nil, err
-	}
-
-	return containerClient, nil
-}
-
 func setupCosmosDB(config Database) (*db.CosmosDB, error) {
-	client, err := setupCosmosContainerClient(config.CosmosContainerClient)
+	client, err := db.NewCosmosClient(config.ConnectionString, config.Database, config.Container)
 	if err != nil {
 		return nil, err
 	}
 
-	logger, err := setupLogger(config.Log.DBLevel)
-	if err != nil {
-		return nil, err
-	}
-
-	cosmosDB, err := db.NewCosmosDB(client, logger)
+	cosmosDB, err := db.NewCosmosDB(client)
 	if err != nil {
 		return nil, err
 	}
