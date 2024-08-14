@@ -3,8 +3,8 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/google/uuid"
 )
@@ -16,59 +16,26 @@ type logger interface {
 	Error(msg string, args ...any)
 }
 
-type client interface {
-	CreateItem(ctx context.Context, partitionKey azcosmos.PartitionKey, item []byte, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error)
-	ReplaceItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, item []byte, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error)
-	DeleteItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error)
-	ReadItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error)
-	NewQueryItemsPager(query string, partitionKey azcosmos.PartitionKey, o *azcosmos.QueryOptions) *runtime.Pager[azcosmos.QueryItemsResponse]
+type QueryResult struct {
+}
+type cosmosClient interface {
+	CreateItem(ctx context.Context, partitionKey azcosmos.PartitionKey, item []byte, o *azcosmos.ItemOptions) ([]byte, error)
+	ReplaceItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, item []byte, o *azcosmos.ItemOptions) ([]byte, error)
+	DeleteItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) ([]byte, error)
+	ReadItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) ([]byte, error)
+	Query(ctx context.Context, query string, partitionKey azcosmos.PartitionKey, o *azcosmos.QueryOptions) ([][]byte, error)
 }
 
-type CosmosDB struct {
-	cl  client
+type CosmosContainerClient struct {
+	cl *azcosmos.ContainerClient
+}
+
+type NotesDB struct {
+	cl  cosmosClient
 	log logger
 }
 
-// func NewCosmosDB(connectionString, dbID, containerID string, logger logger, client Client) (*CosmosDB, error) {
-// 	if len(connectionString) == 0 {
-// 		return nil, ErrConnStringRequired
-// 	}
-// 	if len(dbID) == 0 {
-// 		return nil, ErrDbIdRequired
-// 	}
-// 	if len(containerID) == 0 {
-// 		return nil, ErrContainerIdRequired
-// 	}
-// 	if logger == nil {
-// 		return nil, ErrLoggerRequired
-// 	}
-
-// 	logger.Debug("Creating a new CosmosDB client.", "dbID", dbID, "containerID", containerID)
-
-// 	client, err := azcosmos.NewClientFromConnectionString(connectionString, nil)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	database, err := client.NewDatabase(dbID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	container, err := database.NewContainer(containerID)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return &CosmosDB{
-// 		client:    client,
-// 		database:  database,
-// 		container: container,
-// 		log:       logger,
-// 	}, nil
-// }
-
-func NewCosmosDB(client client, logger logger) (*CosmosDB, error) {
+func NewNotesDB(client cosmosClient, logger logger) (*NotesDB, error) {
 	if client == nil {
 		return nil, ErrClientRequired
 	}
@@ -76,7 +43,7 @@ func NewCosmosDB(client client, logger logger) (*CosmosDB, error) {
 		return nil, ErrLoggerRequired
 	}
 
-	return &CosmosDB{
+	return &NotesDB{
 		cl:  client,
 		log: logger,
 	}, nil
@@ -88,10 +55,11 @@ var newUUID = func() string {
 
 // var newUUID func()string = uuid.NewString
 
-func (c *CosmosDB) CreateNote(ctx context.Context, note Note) (Note, error) {
+func (c *NotesDB) CreateNote(ctx context.Context, note Note) (Note, error) {
 	note.ID = newUUID()
 
-	// Q: would you 'properly' handle the error here, i.e. with the specific message?
+	fmt.Printf("Note is created: %v\n", note)
+
 	bytes, err := json.Marshal(&note)
 	if err != nil {
 		c.log.Error("Failed to marshal the note.", logError(err)...)
@@ -100,6 +68,7 @@ func (c *CosmosDB) CreateNote(ctx context.Context, note Note) (Note, error) {
 
 	pk := azcosmos.NewPartitionKeyString(note.Category)
 
+	fmt.Printf("Trying to create a note in CosmosDB.\n")
 	// Q: would it a better practice to write a custom error message here, i.e. "Failed to create a note in CosmosDB"?
 	resp, err := c.cl.CreateItem(ctx, pk, bytes, &azcosmos.ItemOptions{
 		EnableContentResponseOnWrite: true,
@@ -110,15 +79,14 @@ func (c *CosmosDB) CreateNote(ctx context.Context, note Note) (Note, error) {
 	}
 
 	var noteDB Note
-	if err := json.Unmarshal(resp.Value, &noteDB); err != nil {
+	if err := json.Unmarshal(resp, &noteDB); err != nil {
 		c.log.Error("Failed unmarshal the note.", logError(err)...)
 		return Note{}, err
 	}
-
 	return noteDB, nil
 }
 
-func (c *CosmosDB) UpdateNote(ctx context.Context, note Note) (Note, error) {
+func (c *NotesDB) UpdateNote(ctx context.Context, note Note) (Note, error) {
 	// Q: would you 'properly' handle the error here, i.e. with the specific message?
 	bytes, err := json.Marshal(&note)
 	if err != nil {
@@ -137,15 +105,14 @@ func (c *CosmosDB) UpdateNote(ctx context.Context, note Note) (Note, error) {
 		return Note{}, checkError(err)
 	}
 
-	if err := json.Unmarshal(resp.Value, &note); err != nil {
+	if err := json.Unmarshal(resp, &note); err != nil {
 		c.log.Error("Failed unmarshal the note.", logError(err)...)
 		return Note{}, err
 	}
-
 	return note, nil
 }
 
-func (c *CosmosDB) DeleteNote(ctx context.Context, id, category string) error {
+func (c *NotesDB) DeleteNote(ctx context.Context, id, category string) error {
 	pk := azcosmos.NewPartitionKeyString(category)
 
 	// Q: would it a better practice to write a custom error message here, i.e. "Failed to delete a note in CosmosDB"?
@@ -155,29 +122,25 @@ func (c *CosmosDB) DeleteNote(ctx context.Context, id, category string) error {
 	return nil
 }
 
-func (c *CosmosDB) GetNotesByCategory(ctx context.Context, category string) ([]Note, error) {
+func (c *NotesDB) GetNotesByCategory(ctx context.Context, category string) ([]Note, error) {
 	var notes []Note
 	query := "SELECT * FROM c"
 	pk := azcosmos.NewPartitionKeyString(category)
-	pager := c.cl.NewQueryItemsPager(query, pk, nil)
-	for pager.More() {
-		resp, err := pager.NextPage(ctx)
-		if err != nil {
+	respItems, err := c.cl.Query(ctx, query, pk, nil)
+	if err != nil {
+		return []Note{}, err
+	}
+	for _, item := range respItems {
+		var note Note
+		if err = json.Unmarshal(item, &note); err != nil {
 			return []Note{}, err
 		}
-
-		for _, item := range resp.Items {
-			var note Note
-			if err = json.Unmarshal(item, &note); err != nil {
-				return []Note{}, err
-			}
-			notes = append(notes, note)
-		}
+		notes = append(notes, note)
 	}
 	return notes, nil
 }
 
-func (c *CosmosDB) GetNoteByID(ctx context.Context, category, id string) (Note, error) {
+func (c *NotesDB) GetNoteByID(ctx context.Context, category, id string) (Note, error) {
 	pk := azcosmos.NewPartitionKeyString(category)
 	// read the item from the container
 	response, err := c.cl.ReadItem(ctx, pk, id, nil)
@@ -187,9 +150,75 @@ func (c *CosmosDB) GetNoteByID(ctx context.Context, category, id string) (Note, 
 	}
 
 	var note Note
-	if err = json.Unmarshal(response.Value, &note); err != nil {
+	if err = json.Unmarshal(response, &note); err != nil {
 		return Note{}, err
 	}
-
 	return note, nil
+}
+
+func NewCosmosContainerClient(connectionString, databaseID, containerID string) (cosmosClient, error) {
+	cosmosClient, err := azcosmos.NewClientFromConnectionString(connectionString, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	databaseClient, err := cosmosClient.NewDatabase(databaseID)
+	if err != nil {
+		return nil, err
+	}
+
+	containerClient, err := databaseClient.NewContainer(containerID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &CosmosContainerClient{
+		cl: containerClient,
+	}, nil
+}
+
+func (c *CosmosContainerClient) CreateItem(ctx context.Context, partitionKey azcosmos.PartitionKey, item []byte, o *azcosmos.ItemOptions) ([]byte, error) {
+	fmt.Printf("In CreateItem function.\n")
+	resp, err := c.cl.CreateItem(ctx, partitionKey, item, o)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Value, nil
+}
+
+func (c *CosmosContainerClient) ReplaceItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, item []byte, o *azcosmos.ItemOptions) ([]byte, error) {
+	resp, err := c.cl.ReplaceItem(ctx, partitionKey, itemId, item, o)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Value, nil
+}
+
+func (c *CosmosContainerClient) DeleteItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) ([]byte, error) {
+	resp, err := c.cl.DeleteItem(ctx, partitionKey, itemId, o)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Value, nil
+}
+
+func (c *CosmosContainerClient) ReadItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) ([]byte, error) {
+	resp, err := c.cl.ReadItem(ctx, partitionKey, itemId, o)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Value, nil
+}
+
+func (c *CosmosContainerClient) Query(ctx context.Context, query string, partitionKey azcosmos.PartitionKey, o *azcosmos.QueryOptions) ([][]byte, error) {
+	pager := c.cl.NewQueryItemsPager(query, partitionKey, nil)
+	var items [][]byte
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, resp.Items...)
+	}
+	return items, nil
 }

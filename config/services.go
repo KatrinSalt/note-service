@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/KatrinSalt/notes-service/db"
 	"github.com/KatrinSalt/notes-service/log"
 	"github.com/KatrinSalt/notes-service/notes"
@@ -19,12 +18,12 @@ func SetupServices(config Services) (*services, error) {
 		return nil, err
 	}
 
-	cosmosDB, err := setupCosmosDB(config.Database)
+	notesDB, err := setupNotesDB(config.Database)
 	if err != nil {
 		return nil, err
 	}
 
-	notesvc, err := notes.NewService(cosmosDB, logger, func(o *notes.ServiceOptions) {
+	notesvc, err := notes.NewService(notesDB, logger, func(o *notes.ServiceOptions) {
 		o.Timeout = config.Note.Timeout
 	},
 	)
@@ -39,37 +38,18 @@ func SetupServices(config Services) (*services, error) {
 
 }
 
-func setupCosmosContainerClient(config Client) (*azcosmos.ContainerClient, error) {
-	if len(config.ConnectionString) == 0 {
+func setupNotesDB(config Database) (*db.NotesDB, error) {
+	if len(config.CosmosContainerClient.ConnectionString) == 0 {
 		return nil, errors.New("cosmosdb connection string is empty")
 	}
-	if len(config.DatabaseID) == 0 {
+	if len(config.CosmosContainerClient.DatabaseID) == 0 {
 		return nil, errors.New("cosmosdb database id is empty")
 	}
-	if len(config.ContainerID) == 0 {
+	if len(config.CosmosContainerClient.DatabaseID) == 0 {
 		return nil, errors.New("cosmosdb container id is empty")
 	}
-
-	CosmosContainerClient, err := azcosmos.NewClientFromConnectionString(config.ConnectionString, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	databaseClient, err := CosmosContainerClient.NewDatabase(config.DatabaseID)
-	if err != nil {
-		return nil, err
-	}
-
-	containerClient, err := databaseClient.NewContainer(config.ContainerID)
-	if err != nil {
-		return nil, err
-	}
-
-	return containerClient, nil
-}
-
-func setupCosmosDB(config Database) (*db.CosmosDB, error) {
-	client, err := setupCosmosContainerClient(config.CosmosContainerClient)
+	containerClient, err := db.NewCosmosContainerClient(config.CosmosContainerClient.ConnectionString,
+		config.CosmosContainerClient.DatabaseID, config.CosmosContainerClient.DatabaseID)
 	if err != nil {
 		return nil, err
 	}
@@ -79,12 +59,12 @@ func setupCosmosDB(config Database) (*db.CosmosDB, error) {
 		return nil, err
 	}
 
-	cosmosDB, err := db.NewCosmosDB(client, logger)
+	notesDB, err := db.NewNotesDB(containerClient, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	return cosmosDB, nil
+	return notesDB, nil
 }
 
 func setupLogger(logLevel string) (*log.Logger, error) {
