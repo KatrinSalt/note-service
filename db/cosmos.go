@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/google/uuid"
@@ -56,9 +57,15 @@ var newUUID = func() string {
 // var newUUID func()string = uuid.NewString
 
 func (c *NotesDB) CreateNote(ctx context.Context, note Note) (Note, error) {
-	note.ID = newUUID()
+	// assign Note ID if it is not set
+	if len(note.ID) == 0 {
+		note.ID = newUUID()
+	}
 
-	fmt.Printf("Note is created: %v\n", note)
+	// assign current time if CreatedAt is not set
+	if note.CreatedAt.IsZero() {
+		note.CreatedAt = time.Now().UTC()
+	}
 
 	bytes, err := json.Marshal(&note)
 	if err != nil {
@@ -68,7 +75,6 @@ func (c *NotesDB) CreateNote(ctx context.Context, note Note) (Note, error) {
 
 	pk := azcosmos.NewPartitionKeyString(note.Category)
 
-	fmt.Printf("Trying to create a note in CosmosDB.\n")
 	// Q: would it a better practice to write a custom error message here, i.e. "Failed to create a note in CosmosDB"?
 	resp, err := c.cl.CreateItem(ctx, pk, bytes, &azcosmos.ItemOptions{
 		EnableContentResponseOnWrite: true,
@@ -183,7 +189,6 @@ func NewCosmosContainerClient(connectionString, databaseID, containerID string) 
 }
 
 func (c *CosmosContainerClient) CreateItem(ctx context.Context, partitionKey azcosmos.PartitionKey, item []byte, o *azcosmos.ItemOptions) ([]byte, error) {
-	fmt.Printf("In CreateItem function.\n")
 	resp, err := c.cl.CreateItem(ctx, partitionKey, item, o)
 	if err != nil {
 		return nil, err

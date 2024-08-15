@@ -1,215 +1,191 @@
 package db
 
-// import (
-// 	"context"
-// 	"encoding/json"
-// 	"errors"
-// 	"testing"
+import (
+	"context"
+	"testing"
+	"time"
 
-// 	"github.com/KatrinSalt/notes-service/log"
+	"github.com/KatrinSalt/notes-service/log"
 
-// 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-// 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-// 	"github.com/stretchr/testify/assert"
-// 	"github.com/stretchr/testify/require"
-// )
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
 
-// type mockInput struct {
-// 	partitionKey azcosmos.PartitionKey
-// 	item         []byte
-// 	itemId       string
-// 	o            *azcosmos.ItemOptions
-// 	query        string
-// }
+type mockInput struct {
+	ctx          context.Context
+	partitionKey azcosmos.PartitionKey
+	item         []byte
+	itemId       string
+	query        string
+	o            *azcosmos.ItemOptions
+}
 
-// type mockCosmosContainerClient struct {
-// 	t          *testing.T
-// 	input      mockInput
-// 	response   azcosmos.ItemResponse
-// 	err        error
-// 	funcCalled bool
+type mockCosmosContainerClient struct {
+	t          *testing.T
+	input      mockInput
+	response   []byte
+	err        error
+	funcCalled bool
+}
 
-// 	// pagerResponse *mockPager[azcosmos.QueryItemsResponse]
-// 	pagerErr    error
-// 	pagerCalled bool
-// }
+func (m *mockCosmosContainerClient) CreateItem(ctx context.Context, partitionKey azcosmos.PartitionKey, item []byte, o *azcosmos.ItemOptions) ([]byte, error) {
+	m.funcCalled = true
 
-// // add response of type pager
-// // or response type any[]
+	require.Equal(m.t, m.input.ctx, ctx)
+	require.Equal(m.t, m.input.partitionKey, partitionKey)
+	require.Equal(m.t, m.input.item, item)
+	require.Equal(m.t, m.input.o, o)
 
-// func (m *mockCosmosContainerClient) CreateItem(ctx context.Context, partitionKey azcosmos.PartitionKey, item []byte, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error) {
-// 	m.funcCalled = true
-// 	require.Equal(m.t, m.input.partitionKey, partitionKey)
-// 	// require.Equal(m.t, m.input.item, item)
-// 	require.Equal(m.t, m.input.o, o)
-// 	return m.response, m.err
-// }
+	return m.response, m.err
+}
 
-// func (m *mockCosmosContainerClient) ReadItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error) {
-// 	return azcosmos.ItemResponse{}, nil
-// }
+func (m *mockCosmosContainerClient) ReadItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) ([]byte, error) {
+	return nil, nil
+}
 
-// func (m *mockCosmosContainerClient) ReplaceItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, item []byte, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error) {
-// 	return azcosmos.ItemResponse{}, nil
-// }
+func (m *mockCosmosContainerClient) ReplaceItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, item []byte, o *azcosmos.ItemOptions) ([]byte, error) {
+	return nil, nil
+}
 
-// func (m *mockCosmosContainerClient) DeleteItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) (azcosmos.ItemResponse, error) {
-// 	return azcosmos.ItemResponse{}, nil
-// }
+func (m *mockCosmosContainerClient) DeleteItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) ([]byte, error) {
+	return nil, nil
+}
 
-// func (m *mockCosmosContainerClient) NewQueryItemsPager(query string, partitionKey azcosmos.PartitionKey, o *azcosmos.QueryOptions) *runtime.Pager[azcosmos.QueryItemsResponse] {
-// 	require.Equal(m.t, m.input.query, query)
-// 	require.Equal(m.t, m.input.partitionKey, partitionKey)
-// 	require.Equal(m.t, m.input.o, o)
-// 	return nil
-// }
+func (m *mockCosmosContainerClient) Query(ctx context.Context, query string, partitionKey azcosmos.PartitionKey, o *azcosmos.QueryOptions) ([][]byte, error) {
+	require.Equal(m.t, m.input.query, query)
+	require.Equal(m.t, m.input.partitionKey, partitionKey)
+	require.Equal(m.t, m.input.o, o)
+	return nil, nil
+}
 
-// type mockPager[T any] struct {
-// 	Pages        []T   // Simulated pages of results
-// 	CurrentPage  int   // Index of the current page
-// 	MorePages    bool  // Determines if there are more pages
-// 	ErrNextPage  error // Error to return from NextPage
-// 	ErrUnmarshal error // Error to return from UnmarshalJSON
-// }
+func Test_CreateNote_Success(t *testing.T) {
+	mockID := "123e4567-e89b-12d3-a456-426614174000"
+	mockCreatedAt := time.Now().UTC()
 
-// // More returns true if there are more pages to retrieve.
-// func (m *mockPager[T]) More() bool {
-// 	return m.MorePages && m.CurrentPage < len(m.Pages)-1
-// }
+	// Arrange
+	mockClient := mockCosmosContainerClient{
+		t: t,
+		input: mockInput{
+			ctx:          context.Background(),
+			partitionKey: azcosmos.NewPartitionKeyString("category"),
+			item:         []byte("{\"id\":\"" + mockID + "\",\"category\":\"category\",\"note\":\"note\",\"timestamp\":\"" + mockCreatedAt.Format(time.RFC3339Nano) + "\"}"),
+			o: &azcosmos.ItemOptions{
+				EnableContentResponseOnWrite: true,
+			},
+		},
+		response: []byte("{\"id\":\"" + mockID + "\",\"category\":\"category\",\"note\":\"note\",\"timestamp\":\"" + mockCreatedAt.Format(time.RFC3339Nano) + "\"}"),
+		err:      nil,
+	}
 
-// func (m *mockPager[T]) NextPage(ctx context.Context) (T, error) {
-// 	if m.ErrNextPage != nil {
-// 		// return error if set
-// 		return *new(T), m.ErrNextPage
-// 	}
-// 	// simulate end of pages
-// 	if m.CurrentPage >= len(m.Pages) {
-// 		return *new(T), errors.New("no more pages")
-// 	}
+	cosmosDB, err := NewNotesDB(
+		&mockClient,
+		log.New(),
+	)
+	assert.NoError(t, err)
 
-// 	result := m.Pages[m.CurrentPage]
-// 	// advance to next page
-// 	m.CurrentPage++
-// 	m.MorePages = m.CurrentPage < len(m.Pages)
+	inputNote := Note{
+		ID:        mockID,
+		Category:  "category",
+		Note:      "note",
+		CreatedAt: mockCreatedAt,
+	}
 
-// 	return result, nil
-// }
+	// Act
+	noteDB, err := cosmosDB.CreateNote(context.Background(), inputNote)
 
-// func (m *mockPager[T]) UnmarshalJSON(data []byte) error {
-// 	if m.ErrUnmarshal != nil {
-// 		return m.ErrUnmarshal // return value if set
-// 	}
-// 	return json.Unmarshal(data, &m.Pages[m.CurrentPage])
-// }
+	// Assert
+	require.NoError(t, err)
+	require.True(t, mockClient.funcCalled)
+	require.NotEmpty(t, noteDB.ID)
+	require.Equal(t, inputNote.Category, noteDB.Category)
+	require.Equal(t, inputNote.Note, noteDB.Note)
+	// Check that CreatedAt is within a reasonable range
+	expectedTime := time.Now().UTC()
+	require.WithinDuration(t, expectedTime, noteDB.CreatedAt, time.Second*2)
+}
 
-// func Test_CreateNote_Success(t *testing.T) {
-// 	// Arrange
-// 	mockClient := mockCosmosContainerClient{
-// 		t: t,
-// 		input: mockInput{
-// 			partitionKey: azcosmos.NewPartitionKeyString("category"),
-// 			item:         []byte("{\"id\":\"id\",\"category\":\"category\",\"note\":\"note\"}"),
-// 			o: &azcosmos.ItemOptions{
-// 				EnableContentResponseOnWrite: true,
-// 			},
-// 		},
-// 		response: azcosmos.ItemResponse{
-// 			Value: []byte(`{"test":"test"}`),
-// 		},
-// 		err: nil,
-// 	}
+func Test_CreateNote_Err_on_Create(t *testing.T) {
+	mockID := "123e4567-e89b-12d3-a456-426614174000"
+	mockCreatedAt := time.Now().UTC()
 
-// 	cosmosDB, err := NewCosmosDB(
-// 		&mockClient,
-// 		log.New(),
-// 	)
-// 	assert.NoError(t, err)
+	// Arrange
+	mockClient := mockCosmosContainerClient{
+		t: t,
+		input: mockInput{
+			ctx:          context.Background(),
+			partitionKey: azcosmos.NewPartitionKeyString("category"),
+			item:         []byte("{\"id\":\"" + mockID + "\",\"category\":\"category\",\"note\":\"note\",\"timestamp\":\"" + mockCreatedAt.Format(time.RFC3339Nano) + "\"}"),
+			o: &azcosmos.ItemOptions{
+				EnableContentResponseOnWrite: true,
+			},
+		},
+		response: nil,
+		err:      assert.AnError,
+	}
 
-// 	note := Note{
-// 		ID:       "id",
-// 		Category: "category",
-// 		Note:     "note",
-// 	}
+	cosmosDB, err := NewNotesDB(
+		&mockClient,
+		log.New(),
+	)
+	assert.NoError(t, err)
 
-// 	// Act
-// 	_, err = cosmosDB.CreateNote(context.Background(), note)
+	inputNote := Note{
+		ID:        mockID,
+		Category:  "category",
+		Note:      "note",
+		CreatedAt: mockCreatedAt,
+	}
 
-// 	// Assert
-// 	require.NoError(t, err)
-// 	require.True(t, mockClient.funcCalled)
-// }
+	// Act
+	noteDB, err := cosmosDB.CreateNote(context.Background(), inputNote)
 
-// func Test_CreateNote_Err_on_Create(t *testing.T) {
-// 	// Arrange
-// 	mockClient := mockCosmosContainerClient{
-// 		t: t,
-// 		input: mockInput{
-// 			partitionKey: azcosmos.NewPartitionKeyString("category"),
-// 			item:         []byte("{\"id\":\"id\",\"category\":\"category\",\"note\":\"note\"}"),
-// 			o: &azcosmos.ItemOptions{
-// 				EnableContentResponseOnWrite: true,
-// 			},
-// 		},
-// 		response: azcosmos.ItemResponse{},
-// 		err:      assert.AnError,
-// 	}
+	// Assert
+	require.True(t, mockClient.funcCalled)
+	require.Equal(t, Note{}, noteDB)
+	require.Error(t, err)
+}
 
-// 	cosmosDB, err := NewCosmosDB(
-// 		&mockClient,
-// 		log.New(),
-// 	)
-// 	assert.NoError(t, err)
+func Test_CreateNote_Err_on_NotJSONResponse(t *testing.T) {
+	mockID := "123e4567-e89b-12d3-a456-426614174000"
+	mockCreatedAt := time.Now().UTC()
 
-// 	note := Note{
-// 		ID:       "id",
-// 		Category: "category",
-// 		Note:     "note",
-// 	}
+	// Arrange
+	mockClient := mockCosmosContainerClient{
+		t: t,
+		input: mockInput{
+			ctx:          context.Background(),
+			partitionKey: azcosmos.NewPartitionKeyString("category"),
+			item:         []byte("{\"id\":\"" + mockID + "\",\"category\":\"category\",\"note\":\"note\",\"timestamp\":\"" + mockCreatedAt.Format(time.RFC3339Nano) + "\"}"),
+			o: &azcosmos.ItemOptions{
+				EnableContentResponseOnWrite: true,
+			},
+		},
+		response: []byte(`notajson`),
+		err:      nil,
+	}
 
-// 	// Act
-// 	_, err = cosmosDB.CreateNote(context.Background(), note)
+	cosmosDB, err := NewNotesDB(
+		&mockClient,
+		log.New(),
+	)
+	assert.NoError(t, err)
 
-// 	// Assert
-// 	require.Error(t, err)
-// 	require.True(t, mockClient.funcCalled)
-// }
+	inputNote := Note{
+		ID:        mockID,
+		Category:  "category",
+		Note:      "note",
+		CreatedAt: mockCreatedAt,
+	}
 
-// func Test_CreateNote_Err_on_NotJSONResponse(t *testing.T) {
-// 	// Arrange
-// 	mockClient := mockCosmosContainerClient{
-// 		t: t,
-// 		input: mockInput{
-// 			partitionKey: azcosmos.NewPartitionKeyString("category"),
-// 			item:         []byte("{\"id\":\"id\",\"category\":\"category\",\"note\":\"note\"}"),
-// 			o: &azcosmos.ItemOptions{
-// 				EnableContentResponseOnWrite: true,
-// 			},
-// 		},
-// 		response: azcosmos.ItemResponse{
-// 			Value: []byte(`notajson`),
-// 		},
-// 		err: nil,
-// 	}
+	// Act
+	noteDB, err := cosmosDB.CreateNote(context.Background(), inputNote)
 
-// 	cosmosDB, err := NewCosmosDB(
-// 		&mockClient,
-// 		log.New(),
-// 	)
-// 	assert.NoError(t, err)
-
-// 	note := Note{
-// 		ID:       "id",
-// 		Category: "category",
-// 		Note:     "note",
-// 	}
-
-// 	// Act
-// 	_, err = cosmosDB.CreateNote(context.Background(), note)
-
-// 	// Assert
-// 	require.Error(t, err)
-// 	require.True(t, mockClient.funcCalled)
-// }
+	// Assert
+	require.True(t, mockClient.funcCalled)
+	require.Equal(t, Note{}, noteDB)
+	require.Error(t, err)
+}
 
 // func Test_GetNotesByCategory_Success(t *testing.T) {
 // 	mockClient := mockCosmosContainerClient{
