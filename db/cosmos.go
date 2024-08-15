@@ -172,6 +172,11 @@ func NewCosmosContainerClient(connectionString, databaseID, containerID string) 
 		return nil, err
 	}
 
+	_, err = containerClient.Read(context.Background(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrClientConnection, err)
+	}
+
 	return &CosmosContainerClient{
 		cl: containerClient,
 	}, nil

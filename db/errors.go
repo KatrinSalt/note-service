@@ -22,6 +22,10 @@ var (
 	ErrClientRequired = errors.New("database client is not provided")
 )
 
+var (
+	ErrClientConnection = errors.New("connection to the database failed")
+)
+
 // Generic error for the DB layer.
 var (
 	ErrInternalDB = errors.New("internal database error")

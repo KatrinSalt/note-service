@@ -48,8 +48,9 @@ func setupNotesDB(config Database) (*db.NotesDB, error) {
 	if len(config.CosmosContainerClient.DatabaseID) == 0 {
 		return nil, errors.New("cosmosdb container id is empty")
 	}
+
 	containerClient, err := db.NewCosmosContainerClient(config.CosmosContainerClient.ConnectionString,
-		config.CosmosContainerClient.DatabaseID, config.CosmosContainerClient.DatabaseID)
+		config.CosmosContainerClient.DatabaseID, config.CosmosContainerClient.ContainerID)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +64,6 @@ func setupNotesDB(config Database) (*db.NotesDB, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return notesDB, nil
 }
 

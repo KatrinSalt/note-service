@@ -160,7 +160,7 @@ func (s server) getNoteByID() http.Handler {
 
 		note, err := s.notes.GetNoteByID(category, id)
 		if err != nil {
-			s.log.Error("Failed to get a note .", logError(err, "getNoteByID")...)
+			s.log.Error("Failed to get a note.", logError(err, "getNoteByID")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
 				writeError(w, statusCode, code, err)
 				return
@@ -170,7 +170,7 @@ func (s server) getNoteByID() http.Handler {
 		}
 
 		if err := encode(w, http.StatusOK, toNoteAPI(note)); err != nil {
-			s.log.Error("Failed to get a note .", logError(err, "getNoteByID")...)
+			s.log.Error("Failed to get a note.", logError(err, "getNoteByID")...)
 			writeServerError(w)
 			return
 		}
