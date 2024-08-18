@@ -27,7 +27,7 @@ type database interface {
 	// UpdateNote updates a note.
 	UpdateNote(ctx context.Context, note db.Note) (db.Note, error)
 	// DeleteNote deletes a note.
-	DeleteNote(ctx context.Context, id, category string) error
+	DeleteNote(ctx context.Context, id, category string) (db.Note, error)
 	// GetNotesByCategory returns a list of notes stored in DB.
 	GetNotesByCategory(ctx context.Context, category string) ([]db.Note, error)
 	// GetNoteByID returns a notes with id <id>.
@@ -42,7 +42,7 @@ type Service interface {
 	// UpdateNote updates a note.
 	UpdateNote(note Note) (Note, error)
 	// DeleteNote deletes a note by its ID.
-	DeleteNote(note Note) error
+	DeleteNote(note Note) (string, error)
 	// GetNotesByCategory returns a list of notes stored in DB.
 	GetNotesByCategory(category string) ([]Note, error)
 	// GetNoteByID returns a notes with id <id>.
@@ -110,15 +110,16 @@ func (s service) UpdateNote(note Note) (Note, error) {
 	return fromNoteDB(noteDB), nil
 }
 
-func (s service) DeleteNote(note Note) error {
+func (s service) DeleteNote(note Note) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 	defer cancel()
 
-	if err := s.db.DeleteNote(ctx, note.ID, note.Category); err != nil {
-		return checkError(err)
+	noteDB, err := s.db.DeleteNote(ctx, note.ID, note.Category)
+	if err != nil {
+		return "", checkError(err)
 	}
-
-	return nil
+	noteID := fromNoteDB(noteDB).ID
+	return noteID, nil
 }
 
 func (s service) GetNotesByCategory(category string) ([]Note, error) {

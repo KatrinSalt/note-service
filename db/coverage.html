@@ -3,7 +3,7 @@
 <html>
 	<head>
 		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-		<title>DB: Go Coverage Report</title>
+		<title>db: Go Coverage Report</title>
 		<style>
 			body {
 				background: black;
@@ -55,9 +55,9 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/KatrinSalt/notes-service/DB/cosmos.go (17.3%)</option>
+				<option value="file0">github.com/KatrinSalt/notes-service/db/cosmos.go (52.9%)</option>
 				
-				<option value="file1">github.com/KatrinSalt/notes-service/DB/errors.go (45.5%)</option>
+				<option value="file1">github.com/KatrinSalt/notes-service/db/errors.go (60.0%)</option>
 				
 				</select>
 			</div>
@@ -83,43 +83,104 @@ import (
         "github.com/google/uuid"
 )
 
-// logger is the interface that wraps around methods Debug, Info and Error.
-type logger interface {
-        Debug(msg string, args ...any)
-        Info(msg string, args ...any)
-        Error(msg string, args ...any)
-}
-
-type QueryResult struct {
-}
-type cosmosClient interface {
-        CreateItem(ctx context.Context, partitionKey azcosmos.PartitionKey, item []byte, o *azcosmos.ItemOptions) ([]byte, error)
-        ReplaceItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, item []byte, o *azcosmos.ItemOptions) ([]byte, error)
-        DeleteItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) ([]byte, error)
-        ReadItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) ([]byte, error)
-        Query(ctx context.Context, query string, partitionKey azcosmos.PartitionKey, o *azcosmos.QueryOptions) ([][]byte, error)
+type client interface {
+        CreateItem(ctx context.Context, partitionKey string, item []byte) ([]byte, error)
+        ReplaceItem(ctx context.Context, partitionKey string, id string, item []byte) ([]byte, error)
+        DeleteItem(ctx context.Context, partitionKey string, id string) ([]byte, error)
+        ReadItem(ctx context.Context, partitionKey string, id string) ([]byte, error)
+        ListItems(ctx context.Context, partitionKey string) ([][]byte, error)
 }
 
 type CosmosContainerClient struct {
         cl *azcosmos.ContainerClient
 }
 
-type NotesDB struct {
-        cl  cosmosClient
-        log logger
+func NewCosmosContainerClient(connectionString, databaseID, containerID string) (*CosmosContainerClient, error) <span class="cov0" title="0">{
+        client, err := azcosmos.NewClientFromConnectionString(connectionString, nil)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">containerClient, err := client.NewContainer(databaseID, containerID)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">_, err = containerClient.Read(context.Background(), nil)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("%w: %w", ErrClientConnection, err)
+        }</span>
+
+        <span class="cov0" title="0">return &amp;CosmosContainerClient{
+                cl: containerClient,
+        }, nil</span>
 }
 
-func NewNotesDB(client cosmosClient, logger logger) (*NotesDB, error) <span class="cov8" title="1">{
+func (c *CosmosContainerClient) CreateItem(ctx context.Context, partitionKey string, item []byte) ([]byte, error) <span class="cov0" title="0">{
+        resp, err := c.cl.CreateItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), item, &amp;azcosmos.ItemOptions{
+                EnableContentResponseOnWrite: true,
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return resp.Value, nil</span>
+}
+
+func (c *CosmosContainerClient) ReplaceItem(ctx context.Context, partitionKey string, id string, item []byte) ([]byte, error) <span class="cov0" title="0">{
+        resp, err := c.cl.ReplaceItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), id, item, &amp;azcosmos.ItemOptions{
+                EnableContentResponseOnWrite: true,
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return resp.Value, nil</span>
+}
+
+func (c *CosmosContainerClient) DeleteItem(ctx context.Context, partitionKey string, id string) ([]byte, error) <span class="cov0" title="0">{
+        resp, err := c.cl.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), id, &amp;azcosmos.ItemOptions{
+                EnableContentResponseOnWrite: true,
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return resp.Value, nil</span>
+}
+
+func (c *CosmosContainerClient) ReadItem(ctx context.Context, partitionKey string, id string) ([]byte, error) <span class="cov0" title="0">{
+        resp, err := c.cl.ReadItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), id, &amp;azcosmos.ItemOptions{
+                EnableContentResponseOnWrite: true,
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return resp.Value, nil</span>
+}
+
+func (c *CosmosContainerClient) ListItems(ctx context.Context, partitionKey string) ([][]byte, error) <span class="cov0" title="0">{
+        query := "SELECT * FROM c"
+        pager := c.cl.NewQueryItemsPager(query, azcosmos.NewPartitionKeyString(partitionKey), nil)
+        var items [][]byte
+        for pager.More() </span><span class="cov0" title="0">{
+                resp, err := pager.NextPage(ctx)
+                if err != nil </span><span class="cov0" title="0">{
+                        return nil, err
+                }</span>
+                <span class="cov0" title="0">items = append(items, resp.Items...)</span>
+        }
+        <span class="cov0" title="0">return items, nil</span>
+}
+
+type NotesDB struct {
+        cl client
+}
+
+func NewNotesDB(client client) (*NotesDB, error) <span class="cov8" title="1">{
         if client == nil </span><span class="cov0" title="0">{
                 return nil, ErrClientRequired
         }</span>
-        <span class="cov8" title="1">if logger == nil </span><span class="cov0" title="0">{
-                return nil, ErrLoggerRequired
-        }</span>
 
         <span class="cov8" title="1">return &amp;NotesDB{
-                cl:  client,
-                log: logger,
+                cl: client,
         }, nil</span>
 }
 
@@ -142,168 +203,84 @@ func (c *NotesDB) CreateNote(ctx context.Context, note Note) (Note, error) <span
 
         <span class="cov8" title="1">bytes, err := json.Marshal(&amp;note)
         if err != nil </span><span class="cov0" title="0">{
-                c.log.Error("Failed to marshal the note.", logError(err)...)
                 return Note{}, err
         }</span>
 
-        <span class="cov8" title="1">pk := azcosmos.NewPartitionKeyString(note.Category)
-
         // Q: would it a better practice to write a custom error message here, i.e. "Failed to create a note in CosmosDB"?
-        resp, err := c.cl.CreateItem(ctx, pk, bytes, &amp;azcosmos.ItemOptions{
-                EnableContentResponseOnWrite: true,
-        })
+        <span class="cov8" title="1">resp, err := c.cl.CreateItem(ctx, note.Category, bytes)
         if err != nil </span><span class="cov8" title="1">{
-                c.log.Error("Failed to create the note.", logError(err)...)
                 return Note{}, checkError(err)
         }</span>
 
         <span class="cov8" title="1">var noteDB Note
         if err := json.Unmarshal(resp, &amp;noteDB); err != nil </span><span class="cov8" title="1">{
-                c.log.Error("Failed unmarshal the note.", logError(err)...)
                 return Note{}, err
         }</span>
         <span class="cov8" title="1">return noteDB, nil</span>
 }
 
-func (c *NotesDB) UpdateNote(ctx context.Context, note Note) (Note, error) <span class="cov0" title="0">{
-        // Q: would you 'properly' handle the error here, i.e. with the specific message?
+func (c *NotesDB) UpdateNote(ctx context.Context, note Note) (Note, error) <span class="cov8" title="1">{
         bytes, err := json.Marshal(&amp;note)
         if err != nil </span><span class="cov0" title="0">{
-                c.log.Error("Failed to marshal the note.", logError(err)...)
                 return Note{}, err
         }</span>
-
-        <span class="cov0" title="0">pk := azcosmos.NewPartitionKeyString(note.Category)
 
         // Q: would it a better practice to write a custom error message here, i.e. "Failed to update a note in CosmosDB"?
-        resp, err := c.cl.ReplaceItem(ctx, pk, note.ID, bytes, &amp;azcosmos.ItemOptions{
-                EnableContentResponseOnWrite: true,
-        })
-        if err != nil </span><span class="cov0" title="0">{
-                c.log.Error("Failed to update the note.", logError(err)...)
+        <span class="cov8" title="1">resp, err := c.cl.ReplaceItem(ctx, note.Category, note.ID, bytes)
+        if err != nil </span><span class="cov8" title="1">{
                 return Note{}, checkError(err)
         }</span>
 
-        <span class="cov0" title="0">if err := json.Unmarshal(resp, &amp;note); err != nil </span><span class="cov0" title="0">{
-                c.log.Error("Failed unmarshal the note.", logError(err)...)
+        <span class="cov8" title="1">var noteDB Note
+        if err := json.Unmarshal(resp, &amp;noteDB); err != nil </span><span class="cov8" title="1">{
                 return Note{}, err
         }</span>
-        <span class="cov0" title="0">return note, nil</span>
+        <span class="cov8" title="1">return noteDB, nil</span>
 }
 
-func (c *NotesDB) DeleteNote(ctx context.Context, id, category string) error <span class="cov0" title="0">{
-        pk := azcosmos.NewPartitionKeyString(category)
-
+func (c *NotesDB) DeleteNote(ctx context.Context, id, category string) (Note, error) <span class="cov8" title="1">{
         // Q: would it a better practice to write a custom error message here, i.e. "Failed to delete a note in CosmosDB"?
-        if _, err := c.cl.DeleteItem(ctx, pk, id, nil); err != nil </span><span class="cov0" title="0">{
-                return checkError(err)
+        resp, err := c.cl.DeleteItem(ctx, category, id)
+        if err != nil </span><span class="cov8" title="1">{
+                return Note{}, checkError(err)
         }</span>
-        <span class="cov0" title="0">return nil</span>
+
+        <span class="cov8" title="1">var noteDB Note
+        if err := json.Unmarshal(resp, &amp;noteDB); err != nil </span><span class="cov8" title="1">{
+                return Note{}, err
+        }</span>
+        <span class="cov8" title="1">return noteDB, nil</span>
 }
 
-func (c *NotesDB) GetNotesByCategory(ctx context.Context, category string) ([]Note, error) <span class="cov0" title="0">{
+func (c *NotesDB) GetNotesByCategory(ctx context.Context, category string) ([]Note, error) <span class="cov8" title="1">{
         var notes []Note
-        query := "SELECT * FROM c"
-        pk := azcosmos.NewPartitionKeyString(category)
-        respItems, err := c.cl.Query(ctx, query, pk, nil)
-        if err != nil </span><span class="cov0" title="0">{
-                return []Note{}, err
+        respItems, err := c.cl.ListItems(ctx, category)
+        if err != nil </span><span class="cov8" title="1">{
+                return []Note{}, checkError(err)
         }</span>
-        <span class="cov0" title="0">for _, item := range respItems </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">for _, item := range respItems </span><span class="cov8" title="1">{
                 var note Note
-                if err = json.Unmarshal(item, &amp;note); err != nil </span><span class="cov0" title="0">{
+                if err = json.Unmarshal(item, &amp;note); err != nil </span><span class="cov8" title="1">{
                         return []Note{}, err
                 }</span>
-                <span class="cov0" title="0">notes = append(notes, note)</span>
+                <span class="cov8" title="1">notes = append(notes, note)</span>
         }
-        <span class="cov0" title="0">return notes, nil</span>
+        <span class="cov8" title="1">return notes, nil</span>
 }
 
-func (c *NotesDB) GetNoteByID(ctx context.Context, category, id string) (Note, error) <span class="cov0" title="0">{
-        pk := azcosmos.NewPartitionKeyString(category)
+func (c *NotesDB) GetNoteByID(ctx context.Context, category, id string) (Note, error) <span class="cov8" title="1">{
         // read the item from the container
-        response, err := c.cl.ReadItem(ctx, pk, id, nil)
+        response, err := c.cl.ReadItem(ctx, category, id)
         // Q: would it a better practice to write a custom error message here, i.e. "Failed to get a note from the CosmosDB"?
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov8" title="1">{
                 return Note{}, checkError(err)
         }</span>
 
-        <span class="cov0" title="0">var note Note
-        if err = json.Unmarshal(response, &amp;note); err != nil </span><span class="cov0" title="0">{
+        <span class="cov8" title="1">var note Note
+        if err = json.Unmarshal(response, &amp;note); err != nil </span><span class="cov8" title="1">{
                 return Note{}, err
         }</span>
-        <span class="cov0" title="0">return note, nil</span>
-}
-
-func NewCosmosContainerClient(connectionString, databaseID, containerID string) (cosmosClient, error) <span class="cov0" title="0">{
-        cosmosClient, err := azcosmos.NewClientFromConnectionString(connectionString, nil)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-
-        <span class="cov0" title="0">databaseClient, err := cosmosClient.NewDatabase(databaseID)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-
-        <span class="cov0" title="0">containerClient, err := databaseClient.NewContainer(containerID)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-
-        <span class="cov0" title="0">_, err = containerClient.Read(context.Background(), nil)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, fmt.Errorf("%w: %w", ErrClientConnection, err)
-        }</span>
-
-        <span class="cov0" title="0">return &amp;CosmosContainerClient{
-                cl: containerClient,
-        }, nil</span>
-}
-
-func (c *CosmosContainerClient) CreateItem(ctx context.Context, partitionKey azcosmos.PartitionKey, item []byte, o *azcosmos.ItemOptions) ([]byte, error) <span class="cov0" title="0">{
-        resp, err := c.cl.CreateItem(ctx, partitionKey, item, o)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-        <span class="cov0" title="0">return resp.Value, nil</span>
-}
-
-func (c *CosmosContainerClient) ReplaceItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, item []byte, o *azcosmos.ItemOptions) ([]byte, error) <span class="cov0" title="0">{
-        resp, err := c.cl.ReplaceItem(ctx, partitionKey, itemId, item, o)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-        <span class="cov0" title="0">return resp.Value, nil</span>
-}
-
-func (c *CosmosContainerClient) DeleteItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) ([]byte, error) <span class="cov0" title="0">{
-        resp, err := c.cl.DeleteItem(ctx, partitionKey, itemId, o)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-        <span class="cov0" title="0">return resp.Value, nil</span>
-}
-
-func (c *CosmosContainerClient) ReadItem(ctx context.Context, partitionKey azcosmos.PartitionKey, itemId string, o *azcosmos.ItemOptions) ([]byte, error) <span class="cov0" title="0">{
-        resp, err := c.cl.ReadItem(ctx, partitionKey, itemId, o)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-        <span class="cov0" title="0">return resp.Value, nil</span>
-}
-
-func (c *CosmosContainerClient) Query(ctx context.Context, query string, partitionKey azcosmos.PartitionKey, o *azcosmos.QueryOptions) ([][]byte, error) <span class="cov0" title="0">{
-        pager := c.cl.NewQueryItemsPager(query, partitionKey, nil)
-        var items [][]byte
-        for pager.More() </span><span class="cov0" title="0">{
-                resp, err := pager.NextPage(ctx)
-                if err != nil </span><span class="cov0" title="0">{
-                        return nil, err
-                }</span>
-                <span class="cov0" title="0">items = append(items, resp.Items...)</span>
-        }
-        <span class="cov0" title="0">return items, nil</span>
+        <span class="cov8" title="1">return note, nil</span>
 }
 </pre>
 		
@@ -355,11 +332,11 @@ var (
 func checkError(err error) error <span class="cov8" title="1">{
         if err != nil </span><span class="cov8" title="1">{
                 var responseError *azcore.ResponseError
-                if errors.As(err, &amp;responseError) </span><span class="cov0" title="0">{
+                if errors.As(err, &amp;responseError) </span><span class="cov8" title="1">{
                         switch responseError.StatusCode </span>{
                         case http.StatusBadRequest:<span class="cov0" title="0">
                                 return ErrInvalidInput</span>
-                        case http.StatusNotFound:<span class="cov0" title="0">
+                        case http.StatusNotFound:<span class="cov8" title="1">
                                 return ErrNotFound</span>
                         case http.StatusConflict:<span class="cov0" title="0">
                                 return ErrAlreadyExists</span>
@@ -372,11 +349,6 @@ func checkError(err error) error <span class="cov8" title="1">{
         }
         <span class="cov0" title="0">return ErrInternalDB</span>
 }
-
-// logError creates a log message for error loggig.
-func logError(err error) []any <span class="cov8" title="1">{
-        return []any{"error", err, "type", "database"}
-}</span>
 </pre>
 		
 		</div>

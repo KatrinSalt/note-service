@@ -63,8 +63,3 @@ func checkError(err error) error {
 	}
 	return ErrInternalDB
 }
-
-// logError creates a log message for error loggig.
-func logError(err error) []any {
-	return []any{"error", err, "type", "database"}
-}

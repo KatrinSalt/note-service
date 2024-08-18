@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/KatrinSalt/notes-service/api"
@@ -105,8 +106,9 @@ func (s server) deleteNote() http.Handler {
 
 		note := toDeleteNote(id, noteReq)
 
-		if err := s.notes.DeleteNote(note); err != nil {
-			s.log.Error("Failed to delete a note.", logError(err, "deleteNote")...)
+		noteID, err := s.notes.DeleteNote(note)
+		if err != nil {
+			s.log.Error("Failed to delete a note with ID.", logError(err, "deleteNote")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
 				writeError(w, statusCode, code, err)
 				return
@@ -115,7 +117,9 @@ func (s server) deleteNote() http.Handler {
 			return
 		}
 
-		if err := encode(w, http.StatusOK, "Note is deleted"); err != nil {
+		deleteMsg := fmt.Sprintf("Note with ID %s is deleted.", noteID)
+
+		if err := encode(w, http.StatusOK, deleteMsg); err != nil {
 			s.log.Error("Failed to delete a note.", logError(err, "deleteNote")...)
 			writeServerError(w)
 			return

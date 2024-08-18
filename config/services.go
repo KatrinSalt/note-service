@@ -55,12 +55,7 @@ func setupNotesDB(config Database) (*db.NotesDB, error) {
 		return nil, err
 	}
 
-	logger, err := setupLogger(config.Log.DBLevel)
-	if err != nil {
-		return nil, err
-	}
-
-	notesDB, err := db.NewNotesDB(containerClient, logger)
+	notesDB, err := db.NewNotesDB(containerClient)
 	if err != nil {
 		return nil, err
 	}
