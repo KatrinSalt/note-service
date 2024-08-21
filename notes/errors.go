@@ -2,6 +2,7 @@ package notes
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/KatrinSalt/notes-service/db"
 )
@@ -40,7 +41,7 @@ func checkError(err error) error {
 		if errors.Is(err, db.ErrAlreadyExists) {
 			return ErrAlreadyExists
 		}
-		return ErrService
+		return fmt.Errorf("%w: %w", ErrService, err)
 	}
-	return ErrService
+	return fmt.Errorf("%w: %w", ErrService, err)
 }

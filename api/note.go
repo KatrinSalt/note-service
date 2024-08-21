@@ -13,5 +13,6 @@ type Note struct {
 
 type NoteResponse struct {
 	Message string `json:"message,omitempty"`
-	Data    any    `json:"data,omitempty"`
+	Note    any    `json:"note,omitempty"`
+	Notes   any    `json:"notes,omitempty"`
 }

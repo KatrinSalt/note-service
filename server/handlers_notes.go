@@ -13,13 +13,16 @@ import (
 // It also implements the http.Handler interface.
 func (s server) createNote() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// it is assumed that the category is provided in the path
+		category := r.PathValue("category")
+
 		noteReq, err := decode[api.NoteRequest](r)
 		if err != nil {
 			statusCode, code := errorCodes(err)
 			writeError(w, statusCode, code, err)
 			return
 		}
-		data, err := s.notes.CreateNote(toCreateNote(noteReq))
+		data, err := s.notes.CreateNote(toCreateNote(category, noteReq))
 		if err != nil {
 			s.log.Error("Failed to create a note.", logError(err, "createNote")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
@@ -32,7 +35,7 @@ func (s server) createNote() http.Handler {
 
 		response := api.NoteResponse{
 			Message: "Note is created",
-			Data:    toNoteAPI(data),
+			Note:    toNoteAPI(data),
 		}
 
 		if err := encode(w, http.StatusCreated, response); err != nil {
@@ -44,10 +47,10 @@ func (s server) createNote() http.Handler {
 	})
 }
 
-// TODO: can't update the category of the note!
 func (s server) updateNote() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO: add proper validation
+		// it is assumed that the category is provided in the path
+		category := r.PathValue("category")
 		// it is assumed that the id is provided in the path
 		id := r.PathValue("id")
 
@@ -58,7 +61,7 @@ func (s server) updateNote() http.Handler {
 			return
 		}
 
-		note := toUpdateNote(id, noteReq)
+		note := toUpdateNote(category, id, noteReq)
 
 		data, err := s.notes.UpdateNote(note)
 		if err != nil {
@@ -73,7 +76,7 @@ func (s server) updateNote() http.Handler {
 
 		response := api.NoteResponse{
 			Message: "Note is updated",
-			Data:    toNoteAPI(data),
+			Note:    toNoteAPI(data),
 		}
 
 		if err := encode(w, http.StatusOK, response); err != nil {
@@ -87,26 +90,15 @@ func (s server) updateNote() http.Handler {
 
 func (s server) deleteNote() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO: add proper validation
+		// it is assumed that the category is provided in the path
+		category := r.PathValue("category")
 		// it is assumed that the id is provided in the path
 		id := r.PathValue("id")
 
-		noteReq, err := decode[api.NoteRequest](r)
-		if err != nil {
-			statusCode, code := errorCodes(err)
-			writeError(w, statusCode, code, err)
-			return
-		}
+		note := toDeleteNote(category, id)
+		fmt.Printf("handler: note to delete: %v\n", note)
 
-		// Note: leaving it temporary as I am gonna change the logic later (remove category as the partition key)
-		if len(noteReq.Category) == 0 {
-			writeError(w, http.StatusBadRequest, CodeCategoryRequired, ErrCategoryRequired)
-			return
-		}
-
-		note := toDeleteNote(id, noteReq)
-
-		noteID, err := s.notes.DeleteNote(note)
+		err := s.notes.DeleteNote(note)
 		if err != nil {
 			s.log.Error("Failed to delete a note with ID.", logError(err, "deleteNote")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
@@ -117,9 +109,11 @@ func (s server) deleteNote() http.Handler {
 			return
 		}
 
-		deleteMsg := fmt.Sprintf("Note with ID %s is deleted.", noteID)
+		response := api.NoteResponse{
+			Message: "Note is deleted",
+		}
 
-		if err := encode(w, http.StatusOK, deleteMsg); err != nil {
+		if err := encode(w, http.StatusOK, response); err != nil {
 			s.log.Error("Failed to delete a note.", logError(err, "deleteNote")...)
 			writeServerError(w)
 			return
@@ -135,7 +129,7 @@ func (s server) getNotesByCategory() http.Handler {
 		// it is assumed that the category is provided in the path
 		category := r.PathValue("category")
 
-		notes, err := s.notes.GetNotesByCategory(category)
+		data, err := s.notes.GetNotesByCategory(category)
 		if err != nil {
 			s.log.Error("Failed to list notes in the category.", logError(err, "getNotesByCategory")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
@@ -146,7 +140,12 @@ func (s server) getNotesByCategory() http.Handler {
 			return
 		}
 
-		if err := encode(w, http.StatusOK, toNotesAPI(notes)); err != nil {
+		response := api.NoteResponse{
+			Message: "Notes",
+			Notes:   toNotesAPI(data),
+		}
+
+		if err := encode(w, http.StatusOK, response); err != nil {
 			s.log.Error("Failed to list notes in the category.", logError(err, "getNotesByCategory")...)
 			writeServerError(w)
 			return
@@ -157,12 +156,11 @@ func (s server) getNotesByCategory() http.Handler {
 
 func (s server) getNoteByID() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO: add proper validation
 		// it is assumed that the category and id are provided in the path
 		category := r.PathValue("category")
 		id := r.PathValue("id")
 
-		note, err := s.notes.GetNoteByID(category, id)
+		data, err := s.notes.GetNoteByID(category, id)
 		if err != nil {
 			s.log.Error("Failed to get a note.", logError(err, "getNoteByID")...)
 			if statusCode, code := errorCodes(err); statusCode != 0 {
@@ -173,7 +171,12 @@ func (s server) getNoteByID() http.Handler {
 			return
 		}
 
-		if err := encode(w, http.StatusOK, toNoteAPI(note)); err != nil {
+		response := api.NoteResponse{
+			Message: "Note",
+			Note:    toNoteAPI(data),
+		}
+
+		if err := encode(w, http.StatusOK, response); err != nil {
 			s.log.Error("Failed to get a note.", logError(err, "getNoteByID")...)
 			writeServerError(w)
 			return
@@ -182,27 +185,27 @@ func (s server) getNoteByID() http.Handler {
 	})
 }
 
-func toCreateNote(req api.NoteRequest) notes.Note {
+func toCreateNote(category string, req api.NoteRequest) notes.Note {
 	note := notes.Note{
-		Category: req.Category,
+		Category: category,
 		Note:     req.Note,
 	}
 	return note
 }
 
-func toUpdateNote(id string, req api.NoteRequest) notes.Note {
+func toUpdateNote(category, id string, req api.NoteRequest) notes.Note {
 	note := notes.Note{
 		ID:       id,
-		Category: req.Category,
+		Category: category,
 		Note:     req.Note,
 	}
 	return note
 }
 
-func toDeleteNote(id string, req api.NoteRequest) notes.Note {
+func toDeleteNote(category, id string) notes.Note {
 	note := notes.Note{
 		ID:       id,
-		Category: req.Category,
+		Category: category,
 	}
 	return note
 }

@@ -55,7 +55,7 @@ func checkError(err error) error {
 			case http.StatusConflict:
 				return ErrAlreadyExists
 			default:
-				return ErrInternalDB
+				return fmt.Errorf("%w: %w", ErrInternalDB, err)
 			}
 		} else {
 			return fmt.Errorf("%w: %w", ErrInternalDB, err)

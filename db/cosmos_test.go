@@ -261,14 +261,7 @@ func Test_DeleteNote(t *testing.T) {
 				Note:      "note",
 				CreatedAt: mockCreatedAt,
 			},
-			mockResponse: []byte("{\"id\":\"" + mockID + "\",\"category\":\"category\",\"note\":\"note\",\"timestamp\":\"" + mockCreatedAt.Format(time.RFC3339Nano) + "\"}"),
-			mockError:    nil,
-			expectedNote: Note{
-				ID:        mockID,
-				Category:  "category",
-				Note:      "note",
-				CreatedAt: mockCreatedAt,
-			},
+			mockError:     nil,
 			expectError:   false,
 			expectedError: nil,
 		},
@@ -280,9 +273,7 @@ func Test_DeleteNote(t *testing.T) {
 				Note:      "note",
 				CreatedAt: mockCreatedAt,
 			},
-			mockResponse:  nil,
 			mockError:     assert.AnError,
-			expectedNote:  Note{},
 			expectError:   true,
 			expectedError: fmt.Errorf("%w: %w", ErrInternalDB, assert.AnError),
 		},
@@ -294,29 +285,13 @@ func Test_DeleteNote(t *testing.T) {
 				Note:      "note",
 				CreatedAt: mockCreatedAt,
 			},
-			mockResponse: nil,
 			mockError: &azcore.ResponseError{
 				ErrorCode:   "Resource not found",
 				StatusCode:  http.StatusNotFound,
 				RawResponse: nil,
 			},
-			expectedNote:  Note{},
 			expectError:   true,
 			expectedError: ErrNotFound,
-		},
-		{
-			name: "DeleteNote() - error on non-json response",
-			inputNote: Note{
-				ID:        mockID,
-				Category:  "category",
-				Note:      "updated note",
-				CreatedAt: mockCreatedAt,
-			},
-			mockResponse:  []byte(`notajson`),
-			mockError:     nil,
-			expectedNote:  Note{},
-			expectError:   true,
-			expectedError: nil,
 		},
 	}
 
@@ -341,23 +316,18 @@ func Test_DeleteNote(t *testing.T) {
 			assert.NoError(t, err)
 
 			// Act
-			noteDB, err := cosmosDB.DeleteNote(context.Background(), tt.inputNote.ID, tt.inputNote.Category)
+			err = cosmosDB.DeleteNote(context.Background(), tt.inputNote.ID, tt.inputNote.Category)
 
 			// Assert
 			require.True(t, mockClient.funcCalled)
 
 			if tt.expectError {
 				require.Error(t, err)
-				require.Equal(t, tt.expectedNote, noteDB)
 				if tt.expectedError != nil {
 					require.Equal(t, tt.expectedError, err)
 				}
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.expectedNote.ID, noteDB.ID)
-				require.Equal(t, tt.expectedNote.Category, noteDB.Category)
-				require.Equal(t, tt.expectedNote.Note, noteDB.Note)
-				require.WithinDuration(t, tt.expectedNote.CreatedAt, noteDB.CreatedAt, time.Second*2)
 			}
 		})
 	}
@@ -640,14 +610,14 @@ func (m *mockCosmosContainerClient) ReplaceItem(ctx context.Context, partitionKe
 	return m.response, m.err
 }
 
-func (m *mockCosmosContainerClient) DeleteItem(ctx context.Context, partitionKey string, id string) ([]byte, error) {
+func (m *mockCosmosContainerClient) DeleteItem(ctx context.Context, partitionKey string, id string) error {
 	m.funcCalled = true
 
 	require.Equal(m.t, m.input.ctx, ctx)
 	require.Equal(m.t, m.input.partitionKey, partitionKey)
 	require.Equal(m.t, m.input.id, id)
 
-	return m.response, m.err
+	return m.err
 }
 
 func (m *mockCosmosContainerClient) ListItems(ctx context.Context, partitionKey string) ([][]byte, error) {

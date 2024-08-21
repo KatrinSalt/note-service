@@ -13,7 +13,7 @@ import (
 type client interface {
 	CreateItem(ctx context.Context, partitionKey string, item []byte) ([]byte, error)
 	ReplaceItem(ctx context.Context, partitionKey string, id string, item []byte) ([]byte, error)
-	DeleteItem(ctx context.Context, partitionKey string, id string) ([]byte, error)
+	DeleteItem(ctx context.Context, partitionKey string, id string) error
 	ReadItem(ctx context.Context, partitionKey string, id string) ([]byte, error)
 	ListItems(ctx context.Context, partitionKey string) ([][]byte, error)
 }
@@ -63,14 +63,14 @@ func (c *CosmosContainerClient) ReplaceItem(ctx context.Context, partitionKey st
 	return resp.Value, nil
 }
 
-func (c *CosmosContainerClient) DeleteItem(ctx context.Context, partitionKey string, id string) ([]byte, error) {
-	resp, err := c.cl.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), id, &azcosmos.ItemOptions{
+func (c *CosmosContainerClient) DeleteItem(ctx context.Context, partitionKey string, id string) error {
+	_, err := c.cl.DeleteItem(ctx, azcosmos.NewPartitionKeyString(partitionKey), id, &azcosmos.ItemOptions{
 		EnableContentResponseOnWrite: true,
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return resp.Value, nil
+	return nil
 }
 
 func (c *CosmosContainerClient) ReadItem(ctx context.Context, partitionKey string, id string) ([]byte, error) {
@@ -165,18 +165,12 @@ func (c *NotesDB) UpdateNote(ctx context.Context, note Note) (Note, error) {
 	return noteDB, nil
 }
 
-func (c *NotesDB) DeleteNote(ctx context.Context, id, category string) (Note, error) {
-	// Q: would it a better practice to write a custom error message here, i.e. "Failed to delete a note in CosmosDB"?
-	resp, err := c.cl.DeleteItem(ctx, category, id)
+func (c *NotesDB) DeleteNote(ctx context.Context, id, category string) error {
+	err := c.cl.DeleteItem(ctx, category, id)
 	if err != nil {
-		return Note{}, checkError(err)
+		return checkError(err)
 	}
-
-	var noteDB Note
-	if err := json.Unmarshal(resp, &noteDB); err != nil {
-		return Note{}, err
-	}
-	return noteDB, nil
+	return nil
 }
 
 func (c *NotesDB) GetNotesByCategory(ctx context.Context, category string) ([]Note, error) {
