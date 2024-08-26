@@ -1,4 +1,4 @@
-# Simple RESTful API for Note Taking with Azure Cosmos DB
+# NoteMe: Simple RESTful API for Note Taking with Azure Cosmos DB
 
 ## Description
 
