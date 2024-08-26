@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/KatrinSalt/notes-service/db"
+	"github.com/KatrinSalt/notes-service/notes"
 )
 
 var (
@@ -16,6 +16,11 @@ var (
 	ErrEmptyRequestBody = errors.New("empty request body")
 	// ErrForbidden is returned when the request is forbidden.
 	ErrForbidden = errors.New("forbidden")
+	// ErrCategoryRequired is returned when a category is required.
+	ErrCategoryRequired = errors.New("category is required")
+
+	// // ErrIDRequired is returned when an id is required.
+	// ErrIDRequired = errors.New("id is required")
 )
 
 // responseError is a response error.
@@ -42,6 +47,10 @@ func newResponseError(statusCode int, code string, err error) error {
 const (
 	// CodeServerError is the error code for server error.
 	CodeServerError = "ServerError"
+	// CodeIDRequired is the error code for ID required.
+	CodeIDRequired = "IDRequired"
+	// CodeCategoryRequired is the error code for category required.
+	CodeCategoryRequired = "CategoryRequired"
 )
 
 // errorCodeMaps contains a map with HTTP status codes and a map with errors
@@ -51,7 +60,13 @@ var errorCodeMaps = map[int]map[error]string{
 		ErrInvalidRequest:       "InvalidRequest",
 		ErrMalformedRequestBody: "MalformedRequestBody",
 		ErrEmptyRequestBody:     "EmptyRequestBody",
-		db.ErrInvalidInput:      "InvalidDBInput",
+		notes.ErrInvalidInput:   "InvalidInput",
+	},
+	http.StatusNotFound: {
+		notes.ErrNotFound: "NotFound",
+	},
+	http.StatusConflict: {
+		notes.ErrAlreadyExists: "AlreadyExists",
 	},
 }
 
