@@ -109,7 +109,7 @@ In addition to the RESTful API, a CLI (Command Line Interface) client is availab
 
 4. Use the CLI client to interact with the API:
     ```sh
-    go build -o notes-service-cli cmd/cli/main.go
+    go build -o notes-service-cli cmd/cli/
     ./notes-service-cli --help
     ```
 
